@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"chunker/internal/domain"
-	"chunker/pkg/chunking"
+	"chunker/internal/chunking"
 )
 
 type ChunkService struct {
@@ -17,20 +17,9 @@ func NewChunkService(factory domain.ChunkerFactory) *ChunkService {
 }
 
 func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
-	if req.Text == "" {
-		return nil, fmt.Errorf("text cannot be empty")
-	}
-	
-	if req.ChunkSize <= 0 {
-		return nil, fmt.Errorf("chunk_size must be positive")
-	}
-	
-	if req.Overlap < 0 {
-		return nil, fmt.Errorf("overlap cannot be negative")
-	}
-	
-	if req.Overlap >= req.ChunkSize {
-		return nil, fmt.Errorf("overlap must be less than chunk_size")
+	// Validate request
+	if err := req.Validate(); err != nil {
+		return nil, err
 	}
 	
 	// Get strategy with default

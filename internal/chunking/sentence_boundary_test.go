@@ -21,7 +21,7 @@ func TestSentenceBoundaryChunker(t *testing.T) {
 			text:      "First sentence. Second sentence. Third sentence.",
 			size:      30,
 			overlap:   0,
-			wantCount: 2,
+			wantCount: 3, // Each sentence is ~15-16 chars, so they'll be separate chunks
 		},
 		{
 			name:      "single long sentence",

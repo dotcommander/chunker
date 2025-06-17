@@ -1,27 +1,22 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"chunker/internal/domain"
 	"chunker/internal/handler"
 	"chunker/internal/service"
-	"chunker/pkg/chunking"
+	"chunker/internal/chunking"
 )
 
 var (
@@ -50,7 +45,25 @@ func main() {
 
 	// If no flags and stdin is piped, run in CLI mode
 	if !*serverMode && isPiped {
-		runCLIMode()
+		// Initialize dependencies
+		factory := chunking.NewFactory()
+		chunkService := service.NewChunkService(factory)
+		runner := NewCLIRunner(chunkService, os.Stdin, os.Stdout, os.Stderr)
+		
+		// Prepare flags
+		flags := CLIFlags{
+			ChunkSize:     *chunkSize,
+			Overlap:       *overlap,
+			Strategy:      *strategy,
+			TokenEncoding: *tokenEncoding,
+			OutputFormat:  *outputFormat,
+			Pretty:        *pretty,
+		}
+		
+		// Run CLI
+		if err := runner.Run(context.Background(), flags); err != nil {
+			log.Fatal(err)
+		}
 	} else if *serverMode || !isPiped {
 		runServerMode()
 	} else {
@@ -100,97 +113,6 @@ Examples:
 `)
 }
 
-func runCLIMode() {
-	// Read all input from stdin
-	reader := bufio.NewReader(os.Stdin)
-	var builder strings.Builder
-	
-	for {
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				builder.WriteString(text)
-				break
-			}
-			log.Fatalf("Error reading stdin: %v", err)
-		}
-		builder.WriteString(text)
-	}
-
-	inputText := builder.String()
-	if inputText == "" {
-		log.Fatal("No input text provided")
-	}
-
-	// Initialize chunking service
-	factory := chunking.NewFactory()
-	chunkService := service.NewChunkService(factory)
-
-	// Prepare request
-	req := domain.ChunkRequest{
-		Text:      inputText,
-		ChunkSize: *chunkSize,
-		Overlap:   *overlap,
-	}
-
-	if *strategy != "" {
-		req.Strategy = domain.Strategy(*strategy)
-	}
-
-	if *tokenEncoding != "" {
-		req.TokenEncoding = domain.TokenEncoding(*tokenEncoding)
-	}
-
-	// Process chunks
-	ctx := context.Background()
-	resp, err := chunkService.ProcessChunkRequest(ctx, req)
-	if err != nil {
-		log.Fatalf("Error chunking text: %v", err)
-	}
-
-	// Output results
-	switch *outputFormat {
-	case "jsonl":
-		outputJSONL(resp)
-	default:
-		outputJSON(resp)
-	}
-}
-
-func outputJSON(resp *domain.ChunkResponse) {
-	encoder := json.NewEncoder(os.Stdout)
-	if *pretty {
-		encoder.SetIndent("", "  ")
-	}
-	
-	if err := encoder.Encode(resp); err != nil {
-		log.Fatalf("Error encoding JSON: %v", err)
-	}
-}
-
-func outputJSONL(resp *domain.ChunkResponse) {
-	encoder := json.NewEncoder(os.Stdout)
-	
-	// Output metadata first
-	metadata := map[string]interface{}{
-		"type":     "metadata",
-		"metadata": resp.Metadata,
-	}
-	if err := encoder.Encode(metadata); err != nil {
-		log.Fatalf("Error encoding metadata: %v", err)
-	}
-	
-	// Output each chunk as a separate line
-	for _, chunk := range resp.Chunks {
-		chunkLine := map[string]interface{}{
-			"type":  "chunk",
-			"chunk": chunk,
-		}
-		if err := encoder.Encode(chunkLine); err != nil {
-			log.Fatalf("Error encoding chunk: %v", err)
-		}
-	}
-}
 
 func runServerMode() {
 	portStr := *port

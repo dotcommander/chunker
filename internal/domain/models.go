@@ -1,11 +1,34 @@
 package domain
 
+import "fmt"
+
 type ChunkRequest struct {
 	Text          string        `json:"text"`
 	ChunkSize     int           `json:"chunk_size"`
 	Strategy      Strategy      `json:"strategy,omitempty"`
 	Overlap       int           `json:"overlap,omitempty"`
 	TokenEncoding TokenEncoding `json:"token_encoding,omitempty"`
+}
+
+// Validate checks if the ChunkRequest is valid
+func (r ChunkRequest) Validate() error {
+	if r.Text == "" {
+		return fmt.Errorf("text cannot be empty")
+	}
+	
+	if r.ChunkSize <= 0 {
+		return fmt.Errorf("chunk_size must be positive")
+	}
+	
+	if r.Overlap < 0 {
+		return fmt.Errorf("overlap cannot be negative")
+	}
+	
+	if r.Overlap >= r.ChunkSize {
+		return fmt.Errorf("overlap must be less than chunk_size")
+	}
+	
+	return nil
 }
 
 type ChunkResponse struct {
