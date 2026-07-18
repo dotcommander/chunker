@@ -1,0 +1,6 @@
+# Chunker default configuration.
+# Copied to ~/.config/chunker/config.yaml on first run.
+# Edit there; this embedded copy is the upstream default.
+chunk_size: 4000
+overlap: 200
+server_port: "8080"
