@@ -30,7 +30,7 @@ func TestStartServer_BindFailure(t *testing.T) {
 		Handler: http.NewServeMux(),
 	}
 
-	errCh := startServer(srv, port)
+	errCh := startServer(srv)
 	err = waitForShutdown(srv, errCh)
 	if err == nil {
 		t.Fatal("expected bind failure error, got nil")
@@ -85,7 +85,7 @@ func TestStartServer_GracefulShutdown(t *testing.T) {
 
 func TestCreateServer_Timeouts(t *testing.T) {
 	t.Parallel()
-	srv := createServer("0", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv := createServer("127.0.0.1", "0", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 
 	if srv.ReadHeaderTimeout <= 0 {
 		t.Errorf("ReadHeaderTimeout = %v, want > 0 (slowloris defense)", srv.ReadHeaderTimeout)
@@ -98,5 +98,27 @@ func TestCreateServer_Timeouts(t *testing.T) {
 	}
 	if srv.IdleTimeout <= 0 {
 		t.Errorf("IdleTimeout = %v, want > 0", srv.IdleTimeout)
+	}
+}
+
+func TestCreateServer_Address(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		bind string
+		want string
+	}{
+		{name: "IPv4 loopback", bind: "127.0.0.1", want: "127.0.0.1:8080"},
+		{name: "IPv6 loopback", bind: "::1", want: "[::1]:8080"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := createServer(tt.bind, "8080", http.NewServeMux())
+			if srv.Addr != tt.want {
+				t.Errorf("Addr = %q, want %q", srv.Addr, tt.want)
+			}
+		})
 	}
 }

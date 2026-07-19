@@ -9,6 +9,7 @@ import (
 // TestErrorsDocumentation_AllValidationErrorsListed verifies that all validation errors
 // from the codebase are documented in errors.md
 func TestErrorsDocumentation_AllValidationErrorsListed(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("errors.md")
 	if err != nil {
 		t.Fatalf("Failed to read errors.md: %v", err)
@@ -24,7 +25,8 @@ func TestErrorsDocumentation_AllValidationErrorsListed(t *testing.T) {
 	}
 
 	// Unknown/invalid strategy error from domain.ChunkRequest.Validate() (calls Strategy.IsValid())
-	expectedErrors = append(expectedErrors, "failed to create chunker: unknown strategy")
+	expectedErrors = append(expectedErrors, "unknown strategy:")
+	expectedErrors = append(expectedErrors, "unknown token_encoding:")
 
 	// Handler errors from chunk_handler.go
 	expectedErrors = append(expectedErrors, "Invalid request body")
@@ -40,6 +42,7 @@ func TestErrorsDocumentation_AllValidationErrorsListed(t *testing.T) {
 // TestErrorsDocumentation_ResponseStructureDocumented verifies that the error
 // response JSON structure is documented
 func TestErrorsDocumentation_ResponseStructureDocumented(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("errors.md")
 	if err != nil {
 		t.Fatalf("Failed to read errors.md: %v", err)
@@ -50,9 +53,10 @@ func TestErrorsDocumentation_ResponseStructureDocumented(t *testing.T) {
 	requiredSections := []string{
 		"## Error Response Structure",
 		"`error`",
-		"`code`",
 		"Human-readable error message",
-		"Machine-readable error code",
+		"408",
+		"Request canceled",
+		"Internal server error",
 	}
 
 	for _, section := range requiredSections {
@@ -63,8 +67,7 @@ func TestErrorsDocumentation_ResponseStructureDocumented(t *testing.T) {
 
 	// Verify JSON example is present
 	expectedJSONExample := `{
-  "error": "Human-readable error message",
-  "code": "machine_readable_error_code"
+  "error": "Human-readable error message"
 }`
 	if !strings.Contains(fileContent, expectedJSONExample) {
 		t.Error("Error response JSON example not found in errors.md")
@@ -74,6 +77,7 @@ func TestErrorsDocumentation_ResponseStructureDocumented(t *testing.T) {
 // TestErrorsDocumentation_RecoverySuggestionsExist verifies that each error type
 // has recovery suggestions
 func TestErrorsDocumentation_RecoverySuggestionsExist(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("errors.md")
 	if err != nil {
 		t.Fatalf("Failed to read errors.md: %v", err)
@@ -141,6 +145,7 @@ func TestErrorsDocumentation_RecoverySuggestionsExist(t *testing.T) {
 // TestErrorsDocumentation_RecoverySection verifies the presence of a
 // dedicated recovery section
 func TestErrorsDocumentation_RecoverySection(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("errors.md")
 	if err != nil {
 		t.Fatalf("Failed to read errors.md: %v", err)

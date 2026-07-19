@@ -3,4 +3,5 @@
 # Edit there; this embedded copy is the upstream default.
 chunk_size: 4000
 overlap: 200
+server_bind: "127.0.0.1"
 server_port: "8080"

@@ -34,7 +34,7 @@ Chunker follows **clean architecture** principles with clear separation of conce
               ┌───────────────────────────────┐
               │    Chunking Layer             │
               │  github.com/dotcommander/     │
-              │         chunking              │
+              │         reliquary/chunking    │
               │  - Strategy implementations   │
               │  - Token counting             │
               └──────────────┬────────────────┘
@@ -58,14 +58,14 @@ Client Request
       │
       ▼
 ┌─────────────────┐
-│ HTTP Handler    │ ← Validates request, extracts parameters
+│ HTTP Handler    │ ← Decodes the request and maps service errors
 │ /chunk endpoint │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │ ChunkService    │ ← Validates business rules, selects strategy
-│ .Chunk()        │
+│ ProcessChunkReq │
 └────────┬────────┘
          │
          ▼
@@ -105,7 +105,7 @@ Stdin Input
          ▼
 ┌─────────────────┐
 │ ChunkService    │ ← Same service layer as HTTP mode
-│ .Chunk()        │
+│ ProcessChunkReq │
 └────────┬────────┘
          │
          ▼
@@ -137,13 +137,13 @@ The foundational interface for all chunking strategies, defined in the external 
 ```go
 type Chunker interface {
     // Chunk splits text into pieces based on strategy
-    Chunk(ctx context.Context, text string, size int, overlap int) []Chunk
+    Chunk(text string, size int, overlap int) []Chunk
     // Strategy returns the strategy name
     Strategy() Strategy
 }
 ```
 
-**Where to implement:** `github.com/dotcommander/chunking` (external library)
+**Where to implement:** `github.com/dotcommander/reliquary/chunking` (external library)
 
 **When to use:** Obtain via `chunking.NewChunker(strategy)` — do not implement locally
 
@@ -166,8 +166,8 @@ Orchestrates chunking operations and business logic.
 
 ```go
 type ChunkService interface {
-    // Chunk performs validation and delegates to strategy
-    Chunk(ctx context.Context, req ChunkRequest) (*ChunkResponse, error)
+    // ProcessChunkRequest validates and delegates to reliquary.
+    ProcessChunkRequest(ctx context.Context, req ChunkRequest) (*ChunkResponse, error)
 }
 ```
 
@@ -194,11 +194,11 @@ type ChunkService interface {
 **Responsibility:** Business logic orchestration
 
 **Contains:**
-- `chunk_service.go`: Validates requests, coordinates factory and chunkers
+- `chunk_service.go`: Validates requests and delegates to reliquary constructors
 
 **When to edit:** Adding business rules, cross-cutting concerns
 
-### Chunking Layer (`github.com/dotcommander/chunking`)
+### Chunking Layer (`github.com/dotcommander/reliquary/chunking`)
 
 **Responsibility:** Strategy implementations (external library)
 
@@ -233,16 +233,16 @@ type ChunkService interface {
 
 | Pattern | Location | Purpose |
 |---------|----------|---------|
-| Strategy | `github.com/dotcommander/chunking` | Pluggable chunking algorithms |
+| Strategy | `github.com/dotcommander/reliquary/chunking` | Pluggable chunking algorithms |
 | Dependency Injection | All layers | Testability and decoupling |
 
 ## Making Changes
 
 ### Adding a New Chunking Strategy
 
-New strategies are implemented in the external `github.com/dotcommander/chunking` library, not in this repo. To consume a new strategy:
+New strategies are implemented in `github.com/dotcommander/reliquary/chunking`, not in this repo. To consume a new strategy:
 
-1. Bump `github.com/dotcommander/chunking` in `go.mod` / run `go get`
+1. Bump `github.com/dotcommander/reliquary` in `go.mod` with `go get`
 2. Add the strategy constant to `domain/models.go`
 3. Update `internal/service/chunk_service.go` to wire `chunking.NewChunker` for the new constant
 4. Write integration tests in `internal/service/`

@@ -319,17 +319,19 @@ cat document.txt | chunker | jq '[.chunks[].text]'
 Use the `serve` subcommand to run Chunker as an HTTP API server.
 
 ```bash
-# Start server on default port 8080
+# Start server on loopback using the configured port (127.0.0.1:8080 by default)
 chunker serve
 
-# Start server on custom port
-chunker serve -port 3000
+# Expose on all interfaces with a custom port
+chunker serve -bind 0.0.0.0 -port 3000
 
 # Override port with environment variable
 PORT=5000 chunker serve
 ```
 
 Server mode provides `/chunk` and `/health` endpoints. See [HTTP API documentation](./schemas.md) for details.
+For network exposure, place Chunker behind an authenticating TLS reverse proxy;
+the built-in HTTP server does not authenticate requests.
 
 ## Error Handling
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -57,7 +58,15 @@ func (h *ChunkHandler) HandleChunk(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.service.ProcessChunkRequest(r.Context(), req)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusBadRequest)
+		switch {
+		case domain.IsRequestValidationError(err):
+			sendError(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			sendError(w, "Request canceled", http.StatusRequestTimeout)
+		default:
+			log.Printf("ERROR: chunk request failed: %v", err)
+			sendError(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 

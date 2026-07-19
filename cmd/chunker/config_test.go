@@ -20,6 +20,9 @@ func TestLoadConfig_EmbeddedDefaultsParse(t *testing.T) {
 	if cfg.ServerPort == "" {
 		t.Error("embedded ServerPort must be non-empty")
 	}
+	if cfg.ServerBind != "127.0.0.1" {
+		t.Errorf("embedded ServerBind = %q, want 127.0.0.1", cfg.ServerBind)
+	}
 }
 
 func TestLoadConfig_FirstRunWritesDefault(t *testing.T) {
@@ -51,7 +54,7 @@ func TestLoadConfig_UserOverridesAreApplied(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte("chunk_size: 1234\noverlap: 56\nserver_port: \"9999\"\n")
+	body := []byte("chunk_size: 1234\noverlap: 56\nserver_bind: \"0.0.0.0\"\nserver_port: \"9999\"\n")
 	if err := os.WriteFile(target, body, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +70,9 @@ func TestLoadConfig_UserOverridesAreApplied(t *testing.T) {
 	if cfg.ServerPort != "9999" {
 		t.Errorf("ServerPort = %q, want 9999", cfg.ServerPort)
 	}
+	if cfg.ServerBind != "0.0.0.0" {
+		t.Errorf("ServerBind = %q, want 0.0.0.0", cfg.ServerBind)
+	}
 }
 
 func TestLoadConfig_PartialUserFileKeepsDefaults(t *testing.T) {
@@ -75,7 +81,7 @@ func TestLoadConfig_PartialUserFileKeepsDefaults(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Only chunk_size set; overlap and server_port should fall back to embedded.
+	// Only chunk_size set; overlap and server settings should fall back to embedded.
 	if err := os.WriteFile(target, []byte("chunk_size: 2222\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +97,9 @@ func TestLoadConfig_PartialUserFileKeepsDefaults(t *testing.T) {
 	}
 	if cfg.ServerPort != want.ServerPort {
 		t.Errorf("ServerPort = %q, want default %q", cfg.ServerPort, want.ServerPort)
+	}
+	if cfg.ServerBind != want.ServerBind {
+		t.Errorf("ServerBind = %q, want default %q", cfg.ServerBind, want.ServerBind)
 	}
 }
 

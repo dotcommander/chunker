@@ -14,6 +14,7 @@ import (
 type Config struct {
 	ChunkSize  int    `yaml:"chunk_size"`
 	Overlap    int    `yaml:"overlap"`
+	ServerBind string `yaml:"server_bind"`
 	ServerPort string `yaml:"server_port"`
 }
 
@@ -80,6 +81,9 @@ func LoadConfig() Config {
 	}
 	if loaded.ServerPort != "" {
 		cfg.ServerPort = loaded.ServerPort
+	}
+	if loaded.ServerBind != "" {
+		cfg.ServerBind = loaded.ServerBind
 	}
 	return cfg
 }

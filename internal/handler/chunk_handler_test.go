@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/dotcommander/chunker/internal/domain"
@@ -107,7 +108,7 @@ func TestChunkHandler_HandleChunk_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockSvc := &mockChunkService{
 		processFunc: func(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
-			return nil, errors.New("chunk_size must be greater than 0")
+			return nil, req.Validate()
 		},
 	}
 	handler := NewChunkHandler(mockSvc)
@@ -129,6 +130,57 @@ func TestChunkHandler_HandleChunk_ServiceError(t *testing.T) {
 
 	if errResp.Error != "chunk_size must be greater than 0" {
 		t.Errorf("HandleChunk() error = %v, want validation error", errResp.Error)
+	}
+}
+
+func TestChunkHandler_HandleChunk_InternalError(t *testing.T) {
+	t.Parallel()
+	mockSvc := &mockChunkService{
+		processFunc: func(context.Context, domain.ChunkRequest) (*domain.ChunkResponse, error) {
+			return nil, errors.New("private tokenizer detail")
+		},
+	}
+	handler := NewChunkHandler(mockSvc)
+	req := httptest.NewRequest(http.MethodPost, "/chunk", bytes.NewBufferString(`{"text":"test","chunk_size":100}`))
+	w := httptest.NewRecorder()
+
+	handler.HandleChunk(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("HandleChunk() status = %v, want %v", w.Code, http.StatusInternalServerError)
+	}
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if errResp.Error != "Internal server error" {
+		t.Errorf("HandleChunk() error = %q, want generic internal error", errResp.Error)
+	}
+}
+
+func TestChunkHandler_HandleChunk_ContextError(t *testing.T) {
+	t.Parallel()
+	for _, serviceErr := range []error{context.Canceled, context.DeadlineExceeded} {
+		t.Run(serviceErr.Error(), func(t *testing.T) {
+			t.Parallel()
+			mockSvc := &mockChunkService{
+				processFunc: func(context.Context, domain.ChunkRequest) (*domain.ChunkResponse, error) {
+					return nil, serviceErr
+				},
+			}
+			handler := NewChunkHandler(mockSvc)
+			req := httptest.NewRequest(http.MethodPost, "/chunk", bytes.NewBufferString(`{"text":"test","chunk_size":100}`))
+			w := httptest.NewRecorder()
+
+			handler.HandleChunk(w, req)
+
+			if w.Code != http.StatusRequestTimeout {
+				t.Errorf("HandleChunk() status = %v, want %v", w.Code, http.StatusRequestTimeout)
+			}
+			if strings.Contains(w.Body.String(), serviceErr.Error()) {
+				t.Errorf("HandleChunk() leaked context detail: %s", w.Body.String())
+			}
+		})
 	}
 }
 

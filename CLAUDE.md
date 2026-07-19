@@ -17,11 +17,11 @@ make build
 # Build and run immediately
 make run
 
-# Run server mode (default port 8080)
-./bin/chunker -server
+# Run server mode (default 127.0.0.1:8080)
+./bin/chunker serve
 
-# Run server on custom port
-PORT=3000 ./bin/chunker -server
+# Expose the server on all interfaces with a custom port
+./bin/chunker serve -bind 0.0.0.0 -port 3000
 
 # CLI mode (pipe text through stdin)
 echo "Your text here" | ./bin/chunker -size 1000 -strategy smart_boundary
@@ -72,11 +72,11 @@ The project follows **clean architecture** with clear separation of concerns:
 
 **Domain Layer** (`internal/domain/`)
 - `models.go`: Core types (ChunkRequest, ChunkResponse, Chunk, Metadata, Strategy, TokenEncoding)
-- `interfaces.go`: Business interfaces (Chunker, TokenChunker, ChunkerFactory, ChunkService)
+- `interfaces.go`: ChunkService boundary consumed by the HTTP handler and CLI
 - **No external dependencies** - pure business logic and contracts
 
 **Service Layer** (`internal/service/`)
-- `chunk_service.go`: Orchestrates chunking operations, coordinates between factory and chunkers
+- `chunk_service.go`: Orchestrates chunking through reliquary constructors and chunkers
 - Implements ChunkService interface
 - Handles validation and error responses
 
@@ -97,17 +97,16 @@ The project follows **clean architecture** with clear separation of concerns:
 
 ### Key Design Patterns
 
-**Strategy Pattern**: Different chunking algorithms implement the Chunker interface
-**Factory Pattern**: ChunkerFactory creates appropriate chunker based on strategy enum
-**Dependency Injection**: All components receive dependencies through constructors (service receives factory, handler receives service, CLI runner receives service + io streams)
-**Interface Segregation**: TokenChunker extends Chunker for token-specific operations
+**Strategy Delegation**: Different chunking algorithms implement reliquary's `chunking.Chunker` interface
+**Library Delegation**: ChunkService selects reliquary constructors based on the requested strategy
+**Dependency Injection**: Handler and CLI components receive the chunk service and I/O dependencies through constructors
 
 ## Dependencies
 
 ### Core
 - `github.com/go-chi/chi/v5`: HTTP router with middleware support
 - `github.com/dotcommander/reliquary`: chunking strategies (smart_boundary, token_based, etc.)
-- `github.com/pkoukk/tiktoken-go`: Token encoding (cl100k_base, o200k_base, p50k_base, r50k_base)
+- `github.com/pkoukk/tiktoken-go`: Transitive reliquary dependency for token encoding (cl100k_base, o200k_base, p50k_base, r50k_base)
 
 ### Testing
 - Standard library `testing` package
@@ -145,7 +144,7 @@ For `token_based` strategy, supports multiple encodings:
 ### Mode Detection
 
 The binary automatically determines operation mode:
-- **Server mode**: Explicitly requested with `-server` flag
+- **Server mode**: Explicitly requested with the `serve` subcommand
 - **CLI mode**: Stdin is piped (detected via `os.Stdin.Stat()`)
 - Shows help if neither condition is met
 
@@ -186,11 +185,19 @@ tests := []struct {
 
 - Request validation uses `domain.ChunkRequest.Validate()` (plain Go)
 - Custom validation in `ChunkRequest.Validate()` for business rules
-- Factory returns errors for unknown strategies
-- HTTP handlers return 400 Bad Request with error messages
+- Service returns errors for unknown strategies
+- HTTP handlers return actionable 400 responses for validation, 408 for canceled requests, and generic 500 responses for internal failures
 - Service layer propagates errors with context
 
 ## Server Configuration
+
+The server binds to `127.0.0.1:8080` by default. Configure persistent defaults
+with `server_bind` and `server_port` in `~/.config/chunker/config.yaml`, or use
+`chunker serve -bind <address> -port <port>` for a single run. Set `-bind 0.0.0.0`
+only when the service should be reachable from other hosts.
+
+External exposure should sit behind a reverse proxy that provides authentication
+and transport security; Chunker's HTTP server does not authenticate requests.
 
 ### Middleware Stack (chi)
 1. Logger: Request logging

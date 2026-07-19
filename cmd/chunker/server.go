@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,13 +18,13 @@ import (
 	"github.com/dotcommander/chunker/internal/service"
 )
 
-func runServerMode(portStr string) {
+func runServerMode(bind, portStr string) {
 	chunkService := newChunkService()
 	chunkHandler := handler.NewChunkHandler(chunkService)
 
 	router := setupRouter(chunkHandler)
-	srv := createServer(portStr, router)
-	errCh := startServer(srv, portStr)
+	srv := createServer(bind, portStr, router)
+	errCh := startServer(srv)
 	if err := waitForShutdown(srv, errCh); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
@@ -54,9 +55,9 @@ func setupRouter(chunkHandler *handler.ChunkHandler) *chi.Mux {
 	return r
 }
 
-func createServer(port string, handler http.Handler) *http.Server {
+func createServer(bind, port string, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr:              fmt.Sprintf(":%s", port),
+		Addr:              net.JoinHostPort(bind, port),
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second, // slowloris defense: cap header read
 		ReadTimeout:       30 * time.Second,
@@ -69,10 +70,10 @@ func createServer(port string, handler http.Handler) *http.Server {
 // channel that receives ListenAndServe's error (or nil if the listener exited
 // via http.ErrServerClosed). waitForShutdown selects across this channel so
 // bind failures surface immediately instead of being swallowed.
-func startServer(srv *http.Server, port string) <-chan error {
+func startServer(srv *http.Server) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("Starting server on port %s", port)
+		log.Printf("Starting server on %s", srv.Addr)
 		err := srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			errCh <- err

@@ -3,7 +3,7 @@ module github.com/dotcommander/chunker
 go 1.26.0
 
 require (
-	github.com/dotcommander/reliquary v0.7.0
+	github.com/dotcommander/reliquary v0.8.0
 	github.com/go-chi/chi/v5 v5.3.0
 	gopkg.in/yaml.v3 v3.0.1
 )

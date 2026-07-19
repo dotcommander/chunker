@@ -132,14 +132,12 @@ Error responses follow a standard JSON format.
 | Field    | Type     | Required | Description                        |
 |----------|----------|----------|------------------------------------|
 | `error`  | `string` | Yes      | Human-readable error message       |
-| `code`   | `string` | Yes      | Machine-readable error code        |
 
 ### Example Error Response
 
 ```json
 {
-  "error": "text is required",
-  "code": "invalid_request"
+  "error": "text is required"
 }
 ```
 
@@ -150,4 +148,5 @@ Error responses follow a standard JSON format.
 | `200`| Success                                 |
 | `400`| Bad Request (validation error)          |
 | `405`| Method Not Allowed (non-POST request)   |
+| `408`| Request Timeout (canceled or expired)   |
 | `500`| Internal Server Error                   |

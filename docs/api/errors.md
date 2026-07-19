@@ -4,19 +4,17 @@ Comprehensive error reference for the Chunker API and CLI.
 
 ## Error Response Structure
 
-All errors return a consistent JSON structure:
+Request decoding, validation, cancellation, and service errors return this JSON structure. A wrong HTTP method uses Go's standard plain-text `405` response, shown below.
 
 ```json
 {
-  "error": "Human-readable error message",
-  "code": "machine_readable_error_code"
+  "error": "Human-readable error message"
 }
 ```
 
 | Field   | Type     | Description                              |
 |---------|----------|------------------------------------------|
 | `error` | `string` | Human-readable description of the error  |
-| `code`  | `string` | Machine-readable error code for handling |
 
 ## HTTP Status Codes
 
@@ -25,18 +23,19 @@ All errors return a consistent JSON structure:
 | `200`| OK                            | Successful chunking operation            |
 | `400`| Bad Request                   | Validation failed or invalid input       |
 | `405`| Method Not Allowed            | Non-POST request to `/chunk` endpoint    |
-| `500`| Internal Server Error         | Server-side failure (should not occur)   |
+| `408`| Request Timeout               | Request context was canceled or expired  |
+| `500`| Internal Server Error         | Unexpected server-side failure           |
 
 ## Validation Errors
 
-All validation errors return HTTP `400` status with `invalid_request` error code.
+All validation errors return HTTP `400` with the actionable validation message.
 
 ### Missing Required Fields
 
-| Field        | Error Message                     | Error Code          | Recovery                                                                 |
-|--------------|-----------------------------------|---------------------|--------------------------------------------------------------------------|
-| `text`       | `text is required`                | `invalid_request`   | Provide the `text` field with your content to chunk                      |
-| `chunk_size` | `chunk_size must be greater than 0`| `invalid_request` | Set `chunk_size` to a positive integer (minimum 1)                      |
+| Field        | Error Message                      | Recovery                                                   |
+|--------------|------------------------------------|------------------------------------------------------------|
+| `text`       | `text is required`                 | Provide the `text` field with your content to chunk        |
+| `chunk_size` | `chunk_size must be greater than 0` | Set `chunk_size` to a positive integer (minimum 1)        |
 
 #### Example
 
@@ -50,8 +49,7 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 **Response (400):**
 ```json
 {
-  "error": "text is required",
-  "code": "invalid_request"
+  "error": "text is required"
 }
 ```
 
@@ -59,11 +57,11 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 
 ### Invalid Value Constraints
 
-| Constraint           | Error Message                           | Error Code          | Recovery                                                                      |
-|----------------------|-----------------------------------------|---------------------|-------------------------------------------------------------------------------|
-| Negative chunk size  | `chunk_size must be greater than 0`     | `invalid_request`   | Set `chunk_size` to a positive integer                                        |
-| Negative overlap     | `overlap must be greater than or equal to 0`| `invalid_request` | Set `overlap` to 0 (no overlap) or a positive value for context overlap       |
-| Overlap >= size      | `overlap must be less than chunk_size`  | `invalid_request`   | Reduce overlap to be strictly less than chunk_size, or increase chunk_size   |
+| Constraint           | Error Message                                | Recovery                                                                    |
+|----------------------|----------------------------------------------|-----------------------------------------------------------------------------|
+| Negative chunk size  | `chunk_size must be greater than 0`          | Set `chunk_size` to a positive integer                                      |
+| Negative overlap     | `overlap must be greater than or equal to 0` | Set `overlap` to 0 or a positive value                                      |
+| Overlap >= size      | `overlap must be less than chunk_size`       | Reduce overlap below chunk_size, or increase chunk_size                      |
 
 #### Example
 
@@ -79,8 +77,7 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 **Response (400):**
 ```json
 {
-  "error": "overlap must be less than chunk_size",
-  "code": "invalid_request"
+  "error": "overlap must be less than chunk_size"
 }
 ```
 
@@ -88,9 +85,9 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 
 ### Invalid Strategy
 
-| Strategy      | Error Message                              | Error Code          | Recovery                                                                  |
-|---------------|--------------------------------------------|---------------------|---------------------------------------------------------------------------|
-| Unknown value | `failed to create chunker: unknown strategy: <value>` | `invalid_request`   | Use a valid strategy: `smart_boundary`, `sentence_boundary`, `word_boundary`, `paragraph_aware`, `markdown_aware`, `hard_cut`, or `token_based` |
+| Strategy      | Error Message                        | Recovery                                                                  |
+|---------------|--------------------------------------|---------------------------------------------------------------------------|
+| Unknown value | `unknown strategy: "<value>"`       | Use a valid strategy: `smart_boundary`, `sentence_boundary`, `word_boundary`, `paragraph_aware`, `markdown_aware`, `hard_cut`, or `token_based` |
 
 #### Example
 
@@ -106,8 +103,15 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 **Response (400):**
 ```json
 {
-  "error": "failed to create chunker: unknown strategy: invalid_strategy",
-  "code": "invalid_request"
+  "error": "unknown strategy: \"invalid_strategy\""
+}
+```
+
+An unknown token encoding follows the same validation path:
+
+```json
+{
+  "error": "unknown token_encoding: \"invalid_encoding\""
 }
 ```
 
@@ -117,9 +121,9 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 
 ### Invalid JSON
 
-| Error                       | Error Code          | Recovery                                                   |
-|-----------------------------|---------------------|------------------------------------------------------------|
-| `Invalid request body`      | `invalid_request`   | Ensure request body is valid JSON (check syntax, quotes)   |
+| Error                  | Recovery                                                   |
+|------------------------|------------------------------------------------------------|
+| `Invalid request body` | Ensure request body is valid JSON (check syntax, quotes)   |
 
 #### Example
 
@@ -133,8 +137,7 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 **Response (400):**
 ```json
 {
-  "error": "Invalid request body",
-  "code": "invalid_request"
+  "error": "Invalid request body"
 }
 ```
 
@@ -142,9 +145,9 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 
 ### Wrong HTTP Method
 
-| Method     | Error Message          | Error Code              | Recovery                     |
-|------------|-----------------------|-------------------------|------------------------------|
-| GET, PUT, etc | `Method not allowed` | `method_not_allowed`    | Use POST to `/chunk` endpoint |
+| Method        | Error Message          | Recovery                       |
+|---------------|------------------------|--------------------------------|
+| GET, PUT, etc | `Method not allowed`   | Use POST to `/chunk` endpoint  |
 
 #### Example
 
@@ -153,11 +156,28 @@ All validation errors return HTTP `400` status with `invalid_request` error code
 GET /chunk HTTP/1.1
 ```
 
-**Response (405):**
+**Response (405, text/plain):**
+```text
+Method not allowed
+```
+
+---
+
+## Canceled and Internal Requests
+
+A canceled or expired request returns `408` without exposing the Go context
+error. An unexpected service failure returns `500` with a generic response;
+the server logs the detailed cause.
+
 ```json
 {
-  "error": "Method not allowed",
-  "code": "method_not_allowed"
+  "error": "Request canceled"
+}
+```
+
+```json
+{
+  "error": "Internal server error"
 }
 ```
 
@@ -212,12 +232,13 @@ def validate_chunk_request(text: str, chunk_size: int, overlap: int) -> tuple[bo
 
 - **400 errors**: Do NOT retry - fix the request payload
 - **405 errors**: Do NOT retry - fix the HTTP method
-- **500 errors**: May retry with exponential backoff (should not occur in normal operation)
+- **408 errors**: Retry only when the caller can provide a fresh request context
+- **500 errors**: May retry with bounded exponential backoff
 
 ### Logging Recommendations
 
 Log at minimum:
-- Error code and message
+- Error message
 - Request parameters (sanitized)
 - Timestamp
 - HTTP status code
@@ -225,7 +246,6 @@ Log at minimum:
 ```json
 {
   "timestamp": "2025-01-18T23:47:00Z",
-  "error_code": "invalid_request",
   "error_message": "overlap must be less than chunk_size",
   "request_params": {
     "chunk_size": 100,
@@ -238,10 +258,11 @@ Log at minimum:
 
 ---
 
-## Error Code Reference
+## Status Reference
 
-| Error Code            | HTTP Status | Category         | Description                          |
-|-----------------------|-------------|------------------|--------------------------------------|
-| `invalid_request`     | 400         | Validation       | Request failed validation rules      |
-| `method_not_allowed`  | 405         | HTTP Method      | Incorrect HTTP method used           |
-| `internal_error`      | 500         | Server           | Unexpected server failure            |
+| HTTP Status | Category         | Description                          |
+|-------------|------------------|--------------------------------------|
+| 400         | Validation       | Request failed validation rules      |
+| 405         | HTTP Method      | Incorrect HTTP method used           |
+| 408         | Request context  | Request was canceled or expired      |
+| 500         | Server           | Unexpected server failure            |

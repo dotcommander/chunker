@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -63,12 +64,16 @@ type batchFailure struct {
 // readBoundedFile reads up to limit bytes from the file at path, returning
 // ErrStdinTooLarge when the file exceeds the cap. Mirrors the stdin and HTTP
 // body caps so a large glob match cannot exhaust process memory.
-func readBoundedFile(path string, limit int64) ([]byte, error) {
+func readBoundedFile(path string, limit int64) (data []byte, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close input file: %w", closeErr))
+		}
+	}()
 	return readAllBounded(f, limit)
 }
 
@@ -127,8 +132,15 @@ func writeFileOutput(chunkService domain.ChunkService, outDir string, sourcePath
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	return writeOutputAndClose(chunkService, resp, f)
+}
 
-	runner := NewCLIRunner(chunkService, os.Stdin, f, os.Stderr)
-	return runner.writeOutput(resp, *outputFormat, *pretty)
+func writeOutputAndClose(chunkService domain.ChunkService, resp *domain.ChunkResponse, output io.WriteCloser) error {
+	runner := NewCLIRunner(chunkService, os.Stdin, output, os.Stderr)
+	writeErr := runner.writeOutput(resp, *outputFormat, *pretty)
+	closeErr := output.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close output file: %w", closeErr)
+	}
+	return errors.Join(writeErr, closeErr)
 }

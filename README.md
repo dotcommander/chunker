@@ -1,6 +1,6 @@
 # Chunker
 
-A high-performance text chunking service and CLI tool written in Go that intelligently splits text into manageable chunks using various strategies including NLP-based sentence detection and token counting.
+A high-performance text chunking service and CLI tool written in Go that intelligently splits text into manageable chunks using boundary-aware sentence detection and token counting.
 
 ## Features
 
@@ -18,7 +18,7 @@ A high-performance text chunking service and CLI tool written in Go that intelli
 - **Token Encoding Support**: cl100k_base, o200k_base, p50k_base, r50k_base
 - **Configurable overlap** between chunks for context preservation
 - **Multiple output formats**: JSON, JSON Lines (JSONL)
-- **Zero dependencies** for basic operation
+- **Reliquary integration** for maintained chunking algorithms and token support
 
 ## Installation
 
@@ -75,11 +75,11 @@ cat document.txt | chunker inspect -inspect-format human -sample 3
 Run as an HTTP API server:
 
 ```bash
-# Start server on default port 8080
+# Start server on loopback using the configured port (127.0.0.1:8080 by default)
 chunker serve
 
-# Custom port
-chunker serve -port 3000
+# Expose on all interfaces with a custom port
+chunker serve -bind 0.0.0.0 -port 3000
 
 # Or use environment variable
 PORT=3000 chunker serve
@@ -111,7 +111,7 @@ chunker files -format jsonl -out-dir chunks "documents/*.txt"
 -pretty     Pretty print JSON output
 
 Server mode:
-chunker serve [-port 8080]
+chunker serve [-bind address] [-port port]
 
 Inspect mode:
 chunker inspect [-sample 2] [-inspect-format ndjson|human]

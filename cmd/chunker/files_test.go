@@ -43,6 +43,7 @@ func writeTempFile(t *testing.T, dir, name, contents string) string {
 }
 
 func TestProcessBatchFiles_AllSuccess(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	outDir := t.TempDir()
 	a := writeTempFile(t, dir, "a.txt", "alpha")
@@ -60,6 +61,7 @@ func TestProcessBatchFiles_AllSuccess(t *testing.T) {
 }
 
 func TestProcessBatchFiles_PartialFail(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	outDir := t.TempDir()
 	a := writeTempFile(t, dir, "a.txt", "alpha")
@@ -104,6 +106,7 @@ func TestReadBoundedFile_RejectsOversize(t *testing.T) {
 }
 
 func TestProcessBatchFiles_AllFail(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	outDir := t.TempDir()
 	a := writeTempFile(t, dir, "a.txt", "bad")
@@ -117,5 +120,27 @@ func TestProcessBatchFiles_AllFail(t *testing.T) {
 	}
 	if len(failures) != 2 {
 		t.Errorf("failures=%d want 2 entries", len(failures))
+	}
+}
+
+type closeErrorWriter struct {
+	bytes.Buffer
+	err error
+}
+
+func (w *closeErrorWriter) Close() error {
+	return w.err
+}
+
+func TestWriteOutputAndClose_ReportsCloseError(t *testing.T) {
+	t.Parallel()
+	closeErr := errors.New("disk flush failed")
+	output := &closeErrorWriter{err: closeErr}
+	resp := &domain.ChunkResponse{Chunks: []domain.Chunk{{ID: 1, Text: "test"}}}
+
+	err := writeOutputAndClose(&stubChunkService{}, resp, output)
+
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("writeOutputAndClose() error = %v, want close error", err)
 	}
 }

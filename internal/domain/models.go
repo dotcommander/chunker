@@ -1,8 +1,29 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 )
+
+type requestValidationError struct {
+	message string
+}
+
+func (e *requestValidationError) Error() string {
+	return e.message
+}
+
+func invalidRequest(format string, args ...any) error {
+	return &requestValidationError{message: fmt.Sprintf(format, args...)}
+}
+
+// IsRequestValidationError reports whether err came from ChunkRequest.Validate.
+// Handlers use this boundary to distinguish safe client errors from internal
+// service failures without coupling status codes to error-message text.
+func IsRequestValidationError(err error) bool {
+	var validationErr *requestValidationError
+	return errors.As(err, &validationErr)
+}
 
 type ChunkRequest struct {
 	Text          string        `json:"text"`
@@ -12,33 +33,32 @@ type ChunkRequest struct {
 	TokenEncoding TokenEncoding `json:"token_encoding,omitempty"`
 }
 
-// Validate performs business logic validation
-// Note: Validator dependency moved to service layer for proper DIP compliance
+// Validate performs business logic validation.
 func (r ChunkRequest) Validate() error {
 	// Required fields
 	if r.Text == "" {
-		return fmt.Errorf("text is required")
+		return invalidRequest("text is required")
 	}
 
 	if r.ChunkSize <= 0 {
-		return fmt.Errorf("chunk_size must be greater than 0")
+		return invalidRequest("chunk_size must be greater than 0")
 	}
 
 	if r.Overlap < 0 {
-		return fmt.Errorf("overlap must be greater than or equal to 0")
+		return invalidRequest("overlap must be greater than or equal to 0")
 	}
 
 	// Custom validation for overlap vs chunk size
 	if r.Overlap >= r.ChunkSize {
-		return fmt.Errorf("overlap must be less than chunk_size")
+		return invalidRequest("overlap must be less than chunk_size")
 	}
 
 	if r.Strategy != "" && !r.Strategy.IsValid() {
-		return fmt.Errorf("unknown strategy: %q", r.Strategy)
+		return invalidRequest("unknown strategy: %q", r.Strategy)
 	}
 
 	if r.TokenEncoding != "" && !r.TokenEncoding.IsValid() {
-		return fmt.Errorf("unknown token_encoding: %q", r.TokenEncoding)
+		return invalidRequest("unknown token_encoding: %q", r.TokenEncoding)
 	}
 
 	return nil

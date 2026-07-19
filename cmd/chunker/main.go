@@ -76,6 +76,7 @@ func main() {
 
 func runServeCommand(args []string) {
 	serveFlags := flag.NewFlagSet("serve", flag.ExitOnError)
+	serveBind := serveFlags.String("bind", loadedConfig.ServerBind, "Server bind address")
 	servePort := serveFlags.String("port", loadedConfig.ServerPort, "Server port")
 	serveHelp := serveFlags.Bool("h", false, "Show help")
 	serveFlags.BoolVar(serveHelp, "help", false, "Show help")
@@ -89,7 +90,7 @@ func runServeCommand(args []string) {
 		os.Exit(0)
 	}
 
-	runServerMode(resolvePort(*servePort))
+	runServerMode(*serveBind, resolvePort(*servePort))
 }
 
 func isStdinPiped() bool {
@@ -150,7 +151,7 @@ Usage:
 
   # Server mode:
 	chunker serve
-	chunker serve -port 3000
+	chunker serve -bind 0.0.0.0 -port 3000
 
   # Inspect mode (stdin required):
   cat document.txt | chunker inspect
@@ -170,7 +171,8 @@ CLI Options:
 
 Server Options:
   serve subcommand:
-  -port       Server port (default: 8080)
+  -bind       Server bind address (default from server_bind config)
+  -port       Server port (default from server_port config)
 
 Inspect Options:
   inspect subcommand:
@@ -200,5 +202,5 @@ func printHelp() {
 }
 
 func printServeHelp() {
-	fmt.Fprint(os.Stderr, "Usage: chunker serve [-port 8080]\n")
+	fmt.Fprintf(os.Stderr, "Usage: chunker serve [-bind address] [-port port]\nDefaults: bind=%s port=%s\n", loadedConfig.ServerBind, loadedConfig.ServerPort)
 }

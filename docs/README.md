@@ -87,11 +87,11 @@ Complete API documentation including endpoints, authentication, and integration 
 
 ### [Architecture Overview](contributing/architecture.md)
 
-Deep dive into clean architecture layers, design patterns (Strategy, Factory, DI), and component relationships. Essential reading for contributors.
+Deep dive into the domain, service, handler, and CLI layers plus Reliquary delegation. Essential reading for contributors.
 
 ### [Adding a New Strategy](contributing/new-strategy.md)
 
-Step-by-step guide for implementing a new chunking strategy from scratch. Covers interface implementation, factory registration, and testing patterns.
+Guide to adding a strategy in Reliquary, exposing its matching domain constant here, and testing the integration.
 
 ### [Testing Guidelines](contributing/testing.md)
 
