@@ -123,6 +123,75 @@ func TestProcessBatchFiles_AllFail(t *testing.T) {
 	}
 }
 
+func TestProcessBatchFiles_ReportsOutputPathCollision(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	outDir := t.TempDir()
+	firstDir := filepath.Join(dir, "first")
+	secondDir := filepath.Join(dir, "second")
+	if err := os.MkdirAll(firstDir, 0o755); err != nil {
+		t.Fatalf("mkdir first: %v", err)
+	}
+	if err := os.MkdirAll(secondDir, 0o755); err != nil {
+		t.Fatalf("mkdir second: %v", err)
+	}
+	first := writeTempFile(t, firstDir, "report.txt", "alpha")
+	second := writeTempFile(t, secondDir, "report.txt", "beta")
+
+	var stderr bytes.Buffer
+	processed, failures := processBatchFiles(&stubChunkService{}, []string{first, second}, outDir, &stderr)
+	if processed != 1 || len(failures) != 1 {
+		t.Fatalf("processed=%d failures=%v, want 1 and one failure", processed, failures)
+	}
+	if failures[0].path != second || !strings.Contains(failures[0].err.Error(), "output path collision") {
+		t.Fatalf("failure=%+v, want collision for %s", failures[0], second)
+	}
+	if !strings.Contains(stderr.String(), "skip "+second) {
+		t.Fatalf("stderr=%q, want skip for second source", stderr.String())
+	}
+	output, err := os.ReadFile(filepath.Join(outDir, "report.json"))
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	if !bytes.Contains(output, []byte("alpha")) || bytes.Contains(output, []byte("beta")) {
+		t.Fatalf("output=%s, want first source preserved", output)
+	}
+}
+
+func TestProcessBatchFiles_ReportsFilesystemAliasCollision(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	outDir := t.TempDir()
+	first := writeTempFile(t, dir, "first.txt", "alpha")
+	second := writeTempFile(t, dir, "second.txt", "beta")
+	firstOutput := filepath.Join(outDir, "first.json")
+	secondOutput := filepath.Join(outDir, "second.json")
+	if err := os.WriteFile(firstOutput, []byte("old"), 0o644); err != nil {
+		t.Fatalf("seed first output: %v", err)
+	}
+	if err := os.Link(firstOutput, secondOutput); err != nil {
+		t.Fatalf("link output aliases: %v", err)
+	}
+
+	var stderr bytes.Buffer
+	processed, failures := processBatchFiles(&stubChunkService{}, []string{first, second}, outDir, &stderr)
+	if processed != 1 || len(failures) != 1 {
+		t.Fatalf("processed=%d failures=%v, want 1 and one failure", processed, failures)
+	}
+	if failures[0].path != second || !strings.Contains(failures[0].err.Error(), "output path collision") {
+		t.Fatalf("failure=%+v, want filesystem collision for %s", failures[0], second)
+	}
+	for _, outputPath := range []string{firstOutput, secondOutput} {
+		output, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", outputPath, err)
+		}
+		if !bytes.Contains(output, []byte("alpha")) || bytes.Contains(output, []byte("beta")) {
+			t.Fatalf("output %s=%s, want first source preserved", outputPath, output)
+		}
+	}
+}
+
 type closeErrorWriter struct {
 	bytes.Buffer
 	err error

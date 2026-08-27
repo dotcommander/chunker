@@ -61,6 +61,11 @@ type batchFailure struct {
 	err  error
 }
 
+type writtenOutput struct {
+	source string
+	info   os.FileInfo
+}
+
 // readBoundedFile reads up to limit bytes from the file at path, returning
 // ErrStdinTooLarge when the file exceeds the cap. Mirrors the stdin and HTTP
 // body caps so a large glob match cannot exhaust process memory.
@@ -84,6 +89,8 @@ func readBoundedFile(path string, limit int64) (data []byte, err error) {
 func processBatchFiles(svc domain.ChunkService, matches []string, outDir string, stderr io.Writer) (int, []batchFailure) {
 	processed := 0
 	var failures []batchFailure
+	writtenOutputPaths := make(map[string]string)
+	var writtenOutputFiles []writtenOutput
 	for _, filePath := range matches {
 		info, statErr := os.Stat(filePath)
 		if statErr != nil || info.IsDir() {
@@ -105,29 +112,58 @@ func processBatchFiles(svc domain.ChunkService, matches []string, outDir string,
 			continue
 		}
 
+		outPath := fileOutputPath(outDir, filePath, *outputFormat)
+		if previousSource, exists := findOutputCollision(outPath, writtenOutputPaths, writtenOutputFiles); exists {
+			collisionErr := fmt.Errorf("output path collision with %s: %s", previousSource, outPath)
+			_, _ = fmt.Fprintf(stderr, "skip %s: %v\n", filePath, collisionErr)
+			failures = append(failures, batchFailure{filePath, collisionErr})
+			continue
+		}
+
 		if writeErr := writeFileOutput(svc, outDir, filePath, resp); writeErr != nil {
 			fmt.Fprintf(stderr, "skip %s: %v\n", filePath, writeErr)
 			failures = append(failures, batchFailure{filePath, writeErr})
 			continue
 		}
 
+		writtenOutputPaths[outPath] = filePath
+		if info, statErr := os.Stat(outPath); statErr == nil {
+			writtenOutputFiles = append(writtenOutputFiles, writtenOutput{source: filePath, info: info})
+		}
 		processed++
 	}
 	return processed, failures
 }
 
-func writeFileOutput(chunkService domain.ChunkService, outDir string, sourcePath string, resp *domain.ChunkResponse) error {
+func findOutputCollision(outPath string, writtenPaths map[string]string, writtenFiles []writtenOutput) (string, bool) {
+	if source, exists := writtenPaths[outPath]; exists {
+		return source, true
+	}
+	info, err := os.Stat(outPath)
+	if err != nil {
+		return "", false
+	}
+	for _, written := range writtenFiles {
+		if os.SameFile(info, written.info) {
+			return written.source, true
+		}
+	}
+	return "", false
+}
+
+func fileOutputPath(outDir, sourcePath, format string) string {
 	base := filepath.Base(sourcePath)
 	base = strings.TrimSuffix(base, filepath.Ext(base))
 
-	var ext string
-	if *outputFormat == "jsonl" {
+	ext := ".json"
+	if format == "jsonl" { //nolint:goconst // Preserve the existing CLI wire value without widening this batch fix.
 		ext = ".jsonl"
-	} else {
-		ext = ".json"
 	}
+	return filepath.Join(outDir, base+ext)
+}
 
-	outPath := filepath.Join(outDir, base+ext)
+func writeFileOutput(chunkService domain.ChunkService, outDir string, sourcePath string, resp *domain.ChunkResponse) error {
+	outPath := fileOutputPath(outDir, sourcePath, *outputFormat)
 	f, err := os.Create(outPath)
 	if err != nil {
 		return err
