@@ -12,10 +12,18 @@ A high-performance text chunking service and CLI tool written in Go that intelli
   - `hard_cut`: Exact character count splits
   - `paragraph_aware`: Keeps paragraphs together
   - `markdown_aware`: Preserves markdown headings and fenced code blocks
+  - `heading_aware`: Splits on markdown headings and carries a `path` breadcrumb per chunk
   - `token_based`: Token counting for LLM compatibility
 - **Inspect Mode**: Preview chunking stats and sample chunks without full payload output
 - **Batch Files Mode**: Chunk many files from a glob pattern into an output directory
 - **Token Encoding Support**: cl100k_base, o200k_base, p50k_base, r50k_base
+- **Token ceiling on every strategy**: `max_tokens` (or `-max-tokens`) splits
+  chunks that exceed the limit (sentence → word → hard cut) while keeping the
+  base strategy semantic; per-chunk `token_count` and `metadata.max_tokens`
+  report the applied ceiling
+- **Richer chunk payloads**: `content_hash` (16-hex SHA-256) on every chunk,
+  heading `path` breadcrumbs (heading_aware), and strategy `metadata` such as
+  `language`/`line_count` for fenced code blocks (markdown_aware)
 - **Configurable overlap** between chunks for context preservation
 - **Multiple output formats**: JSON, JSON Lines (JSONL)
 - **Reliquary integration** for maintained chunking algorithms and token support
@@ -103,10 +111,13 @@ chunker files -format jsonl -out-dir chunks "documents/*.txt"
 -size       Chunk size in characters or tokens (default: 4000)
 -strategy   Chunking strategy (default: smart_boundary)
             Options: smart_boundary, word_boundary, sentence_boundary,
-                    hard_cut, paragraph_aware, markdown_aware, token_based
+                    hard_cut, paragraph_aware, markdown_aware,
+                    heading_aware, token_based
 -overlap    Overlap between chunks (default: 200)
 -encoding   Token encoding for token_based strategy (default: cl100k_base)
             Options: cl100k_base, o200k_base, p50k_base, r50k_base
+-max-tokens Cap tokens per chunk on any strategy (default: 0 = no cap);
+            oversized chunks split at sentence, then word, then hard cut
 -format     Output format: json, jsonl (default: json)
 -pretty     Pretty print JSON output
 

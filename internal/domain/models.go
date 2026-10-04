@@ -31,6 +31,13 @@ type ChunkRequest struct {
 	Strategy      Strategy      `json:"strategy,omitempty"`
 	Overlap       int           `json:"overlap,omitempty"`
 	TokenEncoding TokenEncoding `json:"token_encoding,omitempty"`
+	// MaxTokens caps every chunk's token count (measured with TokenEncoding,
+	// default cl100k_base) after the base strategy runs. 0 disables the cap.
+	// Chunks that exceed it are split further (sentence, then word, then
+	// hard cut), so strategies can stay semantic while honoring LLM context
+	// limits. It is independent of chunk_size: chunk_size bounds characters
+	// (tokens for token_based); max_tokens bounds tokens on every strategy.
+	MaxTokens int `json:"max_tokens,omitempty"`
 }
 
 // Validate performs business logic validation.
@@ -61,6 +68,10 @@ func (r ChunkRequest) Validate() error {
 		return invalidRequest("unknown token_encoding: %q", r.TokenEncoding)
 	}
 
+	if r.MaxTokens < 0 {
+		return invalidRequest("max_tokens must be greater than or equal to 0")
+	}
+
 	return nil
 }
 
@@ -77,6 +88,15 @@ type Chunk struct {
 	CharCount  int    `json:"char_count"`
 	WordCount  int    `json:"word_count"`
 	TokenCount int    `json:"token_count,omitempty"`
+	// Path is the heading breadcrumb ("H1 Title" → "Subsection") for
+	// heading-aware strategies; omitted otherwise.
+	Path []string `json:"path,omitempty"`
+	// Metadata carries strategy-produced annotations (for example
+	// markdown_aware's heading_level, language, line_count); omitted when the
+	// strategy produces none.
+	Metadata map[string]string `json:"metadata,omitempty"`
+	// ContentHash is the first 16 hex characters of SHA-256(Text).
+	ContentHash string `json:"content_hash"`
 }
 
 type Metadata struct {
@@ -85,6 +105,9 @@ type Metadata struct {
 	TotalTokens   int           `json:"total_tokens,omitempty"`
 	StrategyUsed  Strategy      `json:"strategy_used"`
 	TokenEncoding TokenEncoding `json:"token_encoding,omitempty"`
+	// MaxTokens reports the token ceiling that was enforced, set only when
+	// the request asked for one.
+	MaxTokens int `json:"max_tokens,omitempty"`
 }
 
 type Strategy string
@@ -97,11 +120,12 @@ const (
 	TokenBased       Strategy = "token_based"
 	SmartBoundary    Strategy = "smart_boundary"
 	MarkdownAware    Strategy = "markdown_aware"
+	HeadingAware     Strategy = "heading_aware"
 )
 
 func (s Strategy) IsValid() bool {
 	switch s {
-	case WordBoundary, SentenceBoundary, HardCut, ParagraphAware, TokenBased, SmartBoundary, MarkdownAware:
+	case WordBoundary, SentenceBoundary, HardCut, ParagraphAware, TokenBased, SmartBoundary, MarkdownAware, HeadingAware:
 		return true
 	}
 	return false

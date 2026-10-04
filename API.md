@@ -25,7 +25,8 @@ Content-Type: application/json
   "chunk_size": "integer (required) - Maximum size of each chunk (characters or tokens based on strategy)",
   "strategy": "string (optional) - Chunking strategy to use",
   "overlap": "integer (optional) - Number of characters/tokens to overlap between chunks",
-  "token_encoding": "string (optional) - Token encoding for token-based chunking"
+  "token_encoding": "string (optional) - Token encoding for token-based chunking and max_tokens",
+  "max_tokens": "integer (optional) - Cap tokens per chunk on any strategy (0 = no cap). Chunks that exceed the cap split further: sentence, then word, then hard cut. Measured with token_encoding (default cl100k_base)"
 }
 ```
 
@@ -35,6 +36,8 @@ Content-Type: application/json
 - `sentence_boundary` - Splits at sentence endings when possible
 - `hard_cut` - Exact character count splits
 - `paragraph_aware` - Tries to keep paragraphs together
+- `markdown_aware` - Preserves markdown structure; code-block chunks carry `metadata` (`language`, `line_count`)
+- `heading_aware` - Splits on markdown headings; each chunk carries a `path` breadcrumb of its heading hierarchy
 - `token_based` - Splits by token count (requires token_encoding)
 
 **Token Encodings** (for token_based strategy):
@@ -51,10 +54,15 @@ Content-Type: application/json
   "chunks": [
     {
       "id": 0,
+      "start_char": 0,
+      "end_char": 998,
       "text": "chunk content",
       "char_count": 998,
       "word_count": 150,
-      "token_count": 250
+      "token_count": 250,
+      "path": ["Section Title", "Subsection"],
+      "metadata": {"language": "go", "line_count": "3"},
+      "content_hash": "5f2a1c9e8b7d4a3f"
     }
   ],
   "metadata": {
@@ -62,10 +70,20 @@ Content-Type: application/json
     "total_chars": 4500,
     "total_tokens": 1250,
     "strategy_used": "smart_boundary",
-    "token_encoding": "cl100k_base"
+    "token_encoding": "cl100k_base",
+    "max_tokens": 500
   }
 }
 ```
+
+**Per-chunk fields:** `start_char`/`end_char` are rune offsets into the
+original text (0,0 when a post-processing split cannot be mapped back);
+`token_count` appears when token counting applies (token_based or max_tokens);
+`path` appears for heading_aware; `metadata` appears for markdown_aware;
+`content_hash` is always present (first 16 hex chars of SHA-256 of `text`).
+`metadata.max_tokens` reports an applied token ceiling.
+**Note:** `path`/`metadata` in the example above are illustrative — they never
+appear together on the same strategy.
 
 **Error (400 Bad Request):**
 ```json
@@ -280,7 +298,26 @@ curl -X POST http://localhost:8080/chunk \
   }'
 ```
 
-### 11. Error Cases
+### 11. Token-Capped Smart Boundary
+
+Keep semantic sentence boundaries but guarantee an LLM context limit on any strategy:
+
+```bash
+curl -X POST http://localhost:8080/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Long article text...",
+    "chunk_size": 2000,
+    "strategy": "smart_boundary",
+    "max_tokens": 500
+  }'
+```
+
+Chunks that exceed 500 tokens (cl100k_base) split at sentence boundaries,
+then words, then hard cut. `metadata.max_tokens` echoes the applied ceiling
+and every chunk carries `token_count`.
+
+### 12. Error Cases
 
 #### Missing required field:
 ```bash

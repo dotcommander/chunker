@@ -15,6 +15,7 @@ type CLIFlags struct {
 	Overlap       int
 	Strategy      string
 	TokenEncoding string
+	MaxTokens     int
 	OutputFormat  string
 	Pretty        bool
 }
@@ -57,6 +58,7 @@ func (r *CLIRunner) Run(ctx context.Context, flags CLIFlags) error {
 		Overlap:       flags.Overlap,
 		Strategy:      domain.Strategy(flags.Strategy),
 		TokenEncoding: domain.TokenEncoding(flags.TokenEncoding),
+		MaxTokens:     flags.MaxTokens,
 	}
 
 	// Process request

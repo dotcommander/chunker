@@ -58,6 +58,16 @@ func TestCLIRunner_Run(t *testing.T) {
 			wantErr:  false,
 			contains: []string{`"strategy_used":"word_boundary"`},
 		},
+		{
+			name:  "max tokens cap",
+			input: "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
+			flags: CLIFlags{
+				ChunkSize: 200,
+				MaxTokens: 8,
+			},
+			wantErr:  false,
+			contains: []string{`"max_tokens":8`, `"token_count":`},
+		},
 	}
 
 	for _, tt := range tests {

@@ -39,6 +39,14 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 	}
 
 	libChunks := libChunker.Chunk(req.Text, req.ChunkSize, req.Overlap)
+	effectiveEncoding := req.TokenEncoding
+	if req.MaxTokens > 0 {
+		effectiveEncoding = req.TokenEncoding.WithDefault()
+		libChunks, err = enforceTokenCeiling(libChunks, string(effectiveEncoding), req.MaxTokens)
+		if err != nil {
+			return nil, err
+		}
+	}
 	chunks := domain.FromLibChunks(libChunks)
 	annotateChunkOffsets(req.Text, chunks)
 
@@ -53,13 +61,32 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 		TotalChars:    totalChars,
 		TotalTokens:   totalTokens,
 		StrategyUsed:  strategy,
-		TokenEncoding: req.TokenEncoding,
+		TokenEncoding: effectiveEncoding,
+		MaxTokens:     req.MaxTokens,
 	}
 
 	return &domain.ChunkResponse{
 		Chunks:   chunks,
 		Metadata: metadata,
 	}, nil
+}
+
+// enforceTokenCeiling splits any chunk whose token count exceeds maxTokens
+// (sentence → word → hard-cut cascade in reliquary) and fills per-chunk
+// TokenCount so responses report the effect of the applied ceiling.
+func enforceTokenCeiling(chunks []chunking.Chunk, encoding string, maxTokens int) ([]chunking.Chunk, error) {
+	tokenizer, err := chunking.NewTiktokenTokenizer(encoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tokenizer: %w", err)
+	}
+	limited, err := chunking.EnforceTokenLimitsWithTokenizer(chunks, tokenizer, maxTokens)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enforce max_tokens: %w", err)
+	}
+	if err := chunking.FillTokenCountsWithTokenizer(limited, tokenizer); err != nil {
+		return nil, fmt.Errorf("failed to count tokens: %w", err)
+	}
+	return limited, nil
 }
 
 // annotateChunkOffsets converts the library's authoritative byte offsets

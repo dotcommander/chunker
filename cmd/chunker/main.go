@@ -19,6 +19,7 @@ var (
 	strategy      = new(string)
 	overlap       = new(int)
 	tokenEncoding = new(string)
+	maxTokens     = new(int)
 	outputFormat  = new(string)
 	pretty        = new(bool)
 	help          = new(bool)
@@ -33,6 +34,7 @@ func registerRootFlags(cfg Config) {
 	flag.StringVar(strategy, "strategy", "", "Chunking strategy (defaults to smart_boundary)")
 	flag.IntVar(overlap, "overlap", cfg.Overlap, "Overlap between chunks")
 	flag.StringVar(tokenEncoding, "encoding", "", "Token encoding (for token_based strategy)")
+	flag.IntVar(maxTokens, "max-tokens", 0, "Cap tokens per chunk on any strategy (0 = no cap)")
 	flag.StringVar(outputFormat, "format", "json", "Output format: json, jsonl")
 	flag.BoolVar(pretty, "pretty", false, "Pretty print JSON output")
 	flag.BoolVar(help, "h", false, "Show help")
@@ -108,6 +110,7 @@ func runCLIMode() {
 		Overlap:       *overlap,
 		Strategy:      *strategy,
 		TokenEncoding: *tokenEncoding,
+		MaxTokens:     *maxTokens,
 		OutputFormat:  *outputFormat,
 		Pretty:        *pretty,
 	}
@@ -124,6 +127,7 @@ func newChunkFlagSet(name string) *flag.FlagSet {
 	fs.StringVar(strategy, "strategy", "", "Chunking strategy (defaults to smart_boundary)")
 	fs.IntVar(overlap, "overlap", loadedConfig.Overlap, "Overlap between chunks")
 	fs.StringVar(tokenEncoding, "encoding", "", "Token encoding (for token_based strategy)")
+	fs.IntVar(maxTokens, "max-tokens", 0, "Cap tokens per chunk on any strategy (0 = no cap)")
 	fs.StringVar(outputFormat, "format", "json", "Output format: json, jsonl")
 	fs.BoolVar(pretty, "pretty", false, "Pretty print JSON output")
 	return fs
@@ -136,6 +140,7 @@ func chunkRequestFromFlags(text string) domain.ChunkRequest {
 		Overlap:       *overlap,
 		Strategy:      domain.Strategy(*strategy),
 		TokenEncoding: domain.TokenEncoding(*tokenEncoding),
+		MaxTokens:     *maxTokens,
 	}
 }
 

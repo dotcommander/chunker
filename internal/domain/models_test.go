@@ -121,6 +121,7 @@ func TestStrategy_IsValid(t *testing.T) {
 		{"token_based valid", TokenBased, true},
 		{"smart_boundary valid", SmartBoundary, true},
 		{"markdown_aware valid", MarkdownAware, true},
+		{"heading_aware valid", HeadingAware, true},
 		{"empty invalid", Strategy(""), false},
 		{"invalid strategy", Strategy("invalid"), false},
 		{"uppercase invalid", Strategy("WORD_BOUNDARY"), false},

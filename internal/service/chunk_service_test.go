@@ -95,6 +95,15 @@ func TestChunkService_ProcessChunkRequest_ValidationError(t *testing.T) {
 			},
 			wantErr: `unknown token_encoding: "gpt-4-turbo"`,
 		},
+		{
+			name: "negative max_tokens",
+			req: domain.ChunkRequest{
+				Text:      "test",
+				ChunkSize: 100,
+				MaxTokens: -1,
+			},
+			wantErr: "max_tokens must be greater than or equal to 0",
+		},
 	}
 
 	for _, tt := range tests {
