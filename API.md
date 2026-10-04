@@ -26,7 +26,8 @@ Content-Type: application/json
   "strategy": "string (optional) - Chunking strategy to use",
   "overlap": "integer (optional) - Number of characters/tokens to overlap between chunks",
   "token_encoding": "string (optional) - Token encoding for token-based chunking and max_tokens",
-  "max_tokens": "integer (optional) - Cap tokens per chunk on any strategy (0 = no cap). Chunks that exceed the cap split further: sentence, then word, then hard cut. Measured with token_encoding (default cl100k_base)"
+  "max_tokens": "integer (optional) - Cap tokens per chunk on any strategy (0 = no cap). Chunks that exceed the cap split further: sentence, then word, then hard cut. Measured with token_encoding (default cl100k_base)",
+  "separator_profile": "string (optional) - Recursive separator cascade: default_text (default) or cjk_thai (adds CJK/Thai punctuation separators). Only valid with strategy=recursive"
 }
 ```
 
@@ -38,6 +39,8 @@ Content-Type: application/json
 - `paragraph_aware` - Tries to keep paragraphs together
 - `markdown_aware` - Preserves markdown structure; code-block chunks carry `metadata` (`language`, `line_count`)
 - `heading_aware` - Splits on markdown headings; each chunk carries a `path` breadcrumb of its heading hierarchy
+- `recursive` - Cascade splitting (paragraph → line → word → hard cut); `separator_profile: cjk_thai` adds ideographic/fullwidth punctuation separators
+- `semantic` - Similarity-based chunking; currently returns 400 (embedding configuration not yet available)
 - `token_based` - Splits by token count (requires token_encoding)
 
 **Token Encodings** (for token_based strategy):
@@ -298,7 +301,25 @@ curl -X POST http://localhost:8080/chunk \
   }'
 ```
 
-### 11. Token-Capped Smart Boundary
+### 11. Recursive Chunking with CJK Separators
+
+Split Chinese/Japanese text at ideographic punctuation instead of rune hard cuts:
+
+```bash
+curl -X POST http://localhost:8080/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "第一句。第二句。第三句。",
+    "chunk_size": 6,
+    "strategy": "recursive",
+    "separator_profile": "cjk_thai"
+  }'
+```
+
+The default profile has no CJK separators and would hard-cut mid-sentence;
+`cjk_thai` splits at `。`、`，`、`、` and similar punctuation.
+
+### 12. Token-Capped Smart Boundary
 
 Keep semantic sentence boundaries but guarantee an LLM context limit on any strategy:
 
@@ -317,7 +338,7 @@ Chunks that exceed 500 tokens (cl100k_base) split at sentence boundaries,
 then words, then hard cut. `metadata.max_tokens` echoes the applied ceiling
 and every chunk carries `token_count`.
 
-### 12. Error Cases
+### 13. Error Cases
 
 #### Missing required field:
 ```bash

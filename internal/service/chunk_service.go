@@ -27,11 +27,20 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 
 	strategy := req.Strategy.WithDefault()
 
+	// The semantic strategy needs an embedding provider; until that seam
+	// exists, an explicit request must fail clearly rather than fall back.
+	if strategy == domain.Semantic {
+		return nil, domain.SemanticUnavailable()
+	}
+
 	var libChunker chunking.Chunker
 	var err error
-	if strategy == domain.TokenBased && req.TokenEncoding != "" {
+	switch {
+	case strategy == domain.TokenBased && req.TokenEncoding != "":
 		libChunker, err = chunking.NewTokenChunker(string(req.TokenEncoding.WithDefault()))
-	} else {
+	case strategy == domain.Recursive && req.SeparatorProfile == domain.ProfileCJKThai:
+		libChunker = chunking.NewRecursiveChunker(chunking.CJKThaiSeparatorProfile())
+	default:
 		libChunker, err = chunking.NewChunker(domain.ToLibStrategy(strategy))
 	}
 	if err != nil {
@@ -57,12 +66,13 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 	}
 
 	metadata := domain.Metadata{
-		TotalChunks:   len(chunks),
-		TotalChars:    totalChars,
-		TotalTokens:   totalTokens,
-		StrategyUsed:  strategy,
-		TokenEncoding: effectiveEncoding,
-		MaxTokens:     req.MaxTokens,
+		TotalChunks:      len(chunks),
+		TotalChars:       totalChars,
+		TotalTokens:      totalTokens,
+		StrategyUsed:     strategy,
+		TokenEncoding:    effectiveEncoding,
+		MaxTokens:        req.MaxTokens,
+		SeparatorProfile: req.SeparatorProfile,
 	}
 
 	return &domain.ChunkResponse{

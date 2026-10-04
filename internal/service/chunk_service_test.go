@@ -104,6 +104,26 @@ func TestChunkService_ProcessChunkRequest_ValidationError(t *testing.T) {
 			},
 			wantErr: "max_tokens must be greater than or equal to 0",
 		},
+		{
+			name: "unknown separator profile",
+			req: domain.ChunkRequest{
+				Text:             "test",
+				ChunkSize:        100,
+				Strategy:         domain.Recursive,
+				SeparatorProfile: domain.SeparatorProfile("bogus"),
+			},
+			wantErr: `unknown separator_profile: "bogus"`,
+		},
+		{
+			name: "separator profile without recursive strategy",
+			req: domain.ChunkRequest{
+				Text:             "test",
+				ChunkSize:        100,
+				Strategy:         domain.SmartBoundary,
+				SeparatorProfile: domain.ProfileCJKThai,
+			},
+			wantErr: "separator_profile requires the recursive strategy",
+		},
 	}
 
 	for _, tt := range tests {

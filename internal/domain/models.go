@@ -31,6 +31,9 @@ type ChunkRequest struct {
 	Strategy      Strategy      `json:"strategy,omitempty"`
 	Overlap       int           `json:"overlap,omitempty"`
 	TokenEncoding TokenEncoding `json:"token_encoding,omitempty"`
+	// SeparatorProfile selects the recursive strategy's separator cascade:
+	// "default_text" (empty) or "cjk_thai". Only valid with strategy=recursive.
+	SeparatorProfile SeparatorProfile `json:"separator_profile,omitempty"`
 	// MaxTokens caps every chunk's token count (measured with TokenEncoding,
 	// default cl100k_base) after the base strategy runs. 0 disables the cap.
 	// Chunks that exceed it are split further (sentence, then word, then
@@ -72,6 +75,15 @@ func (r ChunkRequest) Validate() error {
 		return invalidRequest("max_tokens must be greater than or equal to 0")
 	}
 
+	if r.SeparatorProfile != "" {
+		if !r.SeparatorProfile.IsValid() {
+			return invalidRequest("unknown separator_profile: %q", r.SeparatorProfile)
+		}
+		if r.Strategy != Recursive {
+			return invalidRequest("separator_profile requires the recursive strategy")
+		}
+	}
+
 	return nil
 }
 
@@ -108,6 +120,9 @@ type Metadata struct {
 	// MaxTokens reports the token ceiling that was enforced, set only when
 	// the request asked for one.
 	MaxTokens int `json:"max_tokens,omitempty"`
+	// SeparatorProfile reports the recursive separator cascade in effect,
+	// set only when the request specified one.
+	SeparatorProfile SeparatorProfile `json:"separator_profile,omitempty"`
 }
 
 type Strategy string
@@ -121,11 +136,13 @@ const (
 	SmartBoundary    Strategy = "smart_boundary"
 	MarkdownAware    Strategy = "markdown_aware"
 	HeadingAware     Strategy = "heading_aware"
+	Recursive        Strategy = "recursive"
+	Semantic         Strategy = "semantic"
 )
 
 func (s Strategy) IsValid() bool {
 	switch s {
-	case WordBoundary, SentenceBoundary, HardCut, ParagraphAware, TokenBased, SmartBoundary, MarkdownAware, HeadingAware:
+	case WordBoundary, SentenceBoundary, HardCut, ParagraphAware, TokenBased, SmartBoundary, MarkdownAware, HeadingAware, Recursive, Semantic:
 		return true
 	}
 	return false
@@ -136,6 +153,14 @@ func (s Strategy) WithDefault() Strategy {
 		return SmartBoundary
 	}
 	return s
+}
+
+// SemanticUnavailable returns the request-validation error reported when the
+// semantic strategy is requested while no embedding configuration exists.
+// The semantic strategy needs an embedder; until the embedding seam is
+// wired, explicitly requesting it must fail clearly, not silently fall back.
+func SemanticUnavailable() error {
+	return invalidRequest("semantic strategy requires embedding configuration")
 }
 
 type TokenEncoding string
@@ -160,4 +185,19 @@ func (e TokenEncoding) WithDefault() TokenEncoding {
 		return EncodingCL100K
 	}
 	return e
+}
+
+type SeparatorProfile string
+
+const (
+	ProfileDefaultText SeparatorProfile = "default_text"
+	ProfileCJKThai     SeparatorProfile = "cjk_thai"
+)
+
+func (p SeparatorProfile) IsValid() bool {
+	switch p {
+	case ProfileDefaultText, ProfileCJKThai:
+		return true
+	}
+	return false
 }

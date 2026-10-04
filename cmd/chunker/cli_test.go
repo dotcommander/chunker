@@ -68,6 +68,16 @@ func TestCLIRunner_Run(t *testing.T) {
 			wantErr:  false,
 			contains: []string{`"max_tokens":8`, `"token_count":`},
 		},
+		{
+			name:  "recursive strategy",
+			input: "First paragraph.\n\nSecond paragraph.",
+			flags: CLIFlags{
+				ChunkSize: 20,
+				Strategy:  "recursive",
+			},
+			wantErr:  false,
+			contains: []string{`"strategy_used":"recursive"`, `"text":"First paragraph."`},
+		},
 	}
 
 	for _, tt := range tests {

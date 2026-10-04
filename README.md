@@ -13,6 +13,11 @@ A high-performance text chunking service and CLI tool written in Go that intelli
   - `paragraph_aware`: Keeps paragraphs together
   - `markdown_aware`: Preserves markdown headings and fenced code blocks
   - `heading_aware`: Splits on markdown headings and carries a `path` breadcrumb per chunk
+  - `recursive`: Cascade splits — paragraphs, then lines, then words, then
+    hard cuts (LangChain-style); `separator_profile: cjk_thai` adds CJK/Thai
+    punctuation separators for scripts without whitespace word boundaries
+  - `semantic`: Similarity-based chunking (returns a clear 400 until embedding
+    configuration lands)
   - `token_based`: Token counting for LLM compatibility
 - **Inspect Mode**: Preview chunking stats and sample chunks without full payload output
 - **Batch Files Mode**: Chunk many files from a glob pattern into an output directory
@@ -112,7 +117,8 @@ chunker files -format jsonl -out-dir chunks "documents/*.txt"
 -strategy   Chunking strategy (default: smart_boundary)
             Options: smart_boundary, word_boundary, sentence_boundary,
                     hard_cut, paragraph_aware, markdown_aware,
-                    heading_aware, token_based
+                    heading_aware, recursive, token_based
+                    (semantic: 400 until embedding config lands)
 -overlap    Overlap between chunks (default: 200)
 -encoding   Token encoding for token_based strategy (default: cl100k_base)
             Options: cl100k_base, o200k_base, p50k_base, r50k_base
