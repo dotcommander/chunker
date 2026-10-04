@@ -55,7 +55,7 @@ func newChunkService() *service.ChunkService {
 		return service.NewChunkService()
 	}
 	log.Printf("semantic strategy enabled via %s embedding provider", cfg.Provider)
-	return service.NewChunkServiceWithEmbedder(embedder)
+	return service.NewChunkServiceWithEmbedder(embedder).WithEmbeddingModel(cfg.Model)
 }
 
 func resolvePort(cliPort string) string {

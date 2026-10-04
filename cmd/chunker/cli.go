@@ -11,13 +11,14 @@ import (
 
 // CLIFlags represents the command-line arguments
 type CLIFlags struct {
-	ChunkSize     int
-	Overlap       int
-	Strategy      string
-	TokenEncoding string
-	MaxTokens     int
-	OutputFormat  string
-	Pretty        bool
+	ChunkSize         int
+	Overlap           int
+	Strategy          string
+	TokenEncoding     string
+	MaxTokens         int
+	IncludeEmbeddings bool
+	OutputFormat      string
+	Pretty            bool
 }
 
 // CLIRunner encapsulates the CLI application logic
@@ -53,12 +54,13 @@ func (r *CLIRunner) Run(ctx context.Context, flags CLIFlags) error {
 
 	// Create request
 	req := domain.ChunkRequest{
-		Text:          inputText,
-		ChunkSize:     flags.ChunkSize,
-		Overlap:       flags.Overlap,
-		Strategy:      domain.Strategy(flags.Strategy),
-		TokenEncoding: domain.TokenEncoding(flags.TokenEncoding),
-		MaxTokens:     flags.MaxTokens,
+		Text:              inputText,
+		ChunkSize:         flags.ChunkSize,
+		Overlap:           flags.Overlap,
+		Strategy:          domain.Strategy(flags.Strategy),
+		TokenEncoding:     domain.TokenEncoding(flags.TokenEncoding),
+		MaxTokens:         flags.MaxTokens,
+		IncludeEmbeddings: flags.IncludeEmbeddings,
 	}
 
 	// Process request

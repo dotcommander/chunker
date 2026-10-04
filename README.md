@@ -128,6 +128,8 @@ chunker files -format jsonl -out-dir chunks "documents/*.txt"
             oversized chunks split at sentence, then word, then hard cut
 -format     Output format: json, jsonl (default: json)
 -pretty     Pretty print JSON output
+-include-embeddings  Attach an embedding vector to every chunk
+            (needs an embedding provider — see below)
 
 Server mode:
 chunker serve [-bind address] [-port port]

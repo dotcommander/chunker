@@ -10,20 +10,29 @@ import (
 	"github.com/dotcommander/chunker/internal/domain"
 )
 
-// ChunkService chunks text. The optional semantic embedder enables the
-// semantic strategy; without it, semantic requests fail validation clearly.
+// ChunkService chunks text. The optional embedder enables the semantic
+// strategy and include_embeddings payloads; without it, both fail
+// validation clearly.
 type ChunkService struct {
-	semantic chunking.BatchEmbedder
+	embedder       chunking.BatchEmbedder
+	embeddingModel string
 }
 
 func NewChunkService() *ChunkService {
 	return &ChunkService{}
 }
 
-// NewChunkServiceWithEmbedder returns a service whose semantic strategy is
-// backed by the given embedder.
+// NewChunkServiceWithEmbedder returns a service whose semantic strategy and
+// include_embeddings payloads are backed by the given embedder.
 func NewChunkServiceWithEmbedder(embedder chunking.BatchEmbedder) *ChunkService {
-	return &ChunkService{semantic: embedder}
+	return &ChunkService{embedder: embedder}
+}
+
+// WithEmbeddingModel records the provider model name reported in metadata
+// when responses embed chunk text. Chainable for wiring convenience.
+func (s *ChunkService) WithEmbeddingModel(model string) *ChunkService {
+	s.embeddingModel = model
+	return s
 }
 
 func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
@@ -34,6 +43,9 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
+	if req.IncludeEmbeddings && s.embedder == nil {
+		return nil, domain.EmbeddingsUnavailable()
+	}
 
 	strategy := req.Strategy.WithDefault()
 
@@ -42,10 +54,10 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 		// The semantic strategy needs an embedding provider. Without one, an
 		// explicit request must fail clearly rather than fall back; with one,
 		// embedding failures fall back to smart boundary inside the library.
-		if s.semantic == nil {
+		if s.embedder == nil {
 			return nil, domain.SemanticUnavailable()
 		}
-		semanticChunker, err := chunking.NewSemanticChunker(s.semantic, domain.SemanticOptsFrom(req.Semantic))
+		semanticChunker, err := chunking.NewSemanticChunker(s.embedder, domain.SemanticOptsFrom(req.Semantic))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create semantic chunker: %w", err)
 		}
@@ -84,11 +96,43 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 		MaxTokens:        req.MaxTokens,
 		SeparatorProfile: req.SeparatorProfile,
 	}
+	if req.IncludeEmbeddings {
+		if err := s.embedChunks(ctx, chunks, &metadata); err != nil {
+			return nil, err
+		}
+	}
 
 	return &domain.ChunkResponse{
 		Chunks:   chunks,
 		Metadata: metadata,
 	}, nil
+}
+
+// embedChunks embeds every chunk's final text in one batch call and attaches
+// the vectors in order. Called after token-limit composition so the embedded
+// text is exactly what the response carries. An explicit include_embeddings
+// request fails on embedder error — no silent fallback.
+func (s *ChunkService) embedChunks(ctx context.Context, chunks []domain.Chunk, metadata *domain.Metadata) error {
+	if len(chunks) == 0 {
+		return nil
+	}
+	texts := make([]string, len(chunks))
+	for i, c := range chunks {
+		texts[i] = c.Text
+	}
+	vectors, err := s.embedder.EmbedBatch(ctx, texts)
+	if err != nil {
+		return fmt.Errorf("embed chunks: %w", err)
+	}
+	if len(vectors) != len(chunks) {
+		return fmt.Errorf("embed chunks: provider returned %d vectors for %d chunks", len(vectors), len(chunks))
+	}
+	for i, v := range vectors {
+		chunks[i].Embedding = v
+	}
+	metadata.EmbeddingModel = s.embeddingModel
+	metadata.EmbeddingDimensions = len(vectors[0])
+	return nil
 }
 
 // buildChunker constructs the non-semantic strategy chunker.

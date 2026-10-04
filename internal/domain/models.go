@@ -44,6 +44,12 @@ type ChunkRequest struct {
 	// limits. It is independent of chunk_size: chunk_size bounds characters
 	// (tokens for token_based); max_tokens bounds tokens on every strategy.
 	MaxTokens int `json:"max_tokens,omitempty"`
+	// IncludeEmbeddings attaches an embedding vector to every chunk via the
+	// configured embedding provider. Works with any strategy; requires
+	// embedding configuration (400 otherwise). Unlike the semantic strategy,
+	// a mid-request embedding failure fails the request rather than falling
+	// back: the caller explicitly asked for vectors.
+	IncludeEmbeddings bool `json:"include_embeddings,omitempty"`
 }
 
 // Validate performs business logic validation.
@@ -121,6 +127,9 @@ type Chunk struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 	// ContentHash is the first 16 hex characters of SHA-256(Text).
 	ContentHash string `json:"content_hash"`
+	// Embedding is the chunk text's embedding vector, present only when the
+	// request set include_embeddings.
+	Embedding []float32 `json:"embedding,omitempty"`
 }
 
 type Metadata struct {
@@ -135,6 +144,12 @@ type Metadata struct {
 	// SeparatorProfile reports the recursive separator cascade in effect,
 	// set only when the request specified one.
 	SeparatorProfile SeparatorProfile `json:"separator_profile,omitempty"`
+	// EmbeddingModel names the provider model that produced the chunk
+	// embeddings; set only when the request set include_embeddings.
+	EmbeddingModel string `json:"embedding_model,omitempty"`
+	// EmbeddingDimensions is the vector length of the chunk embeddings;
+	// set only when the request set include_embeddings.
+	EmbeddingDimensions int `json:"embedding_dimensions,omitempty"`
 }
 
 type Strategy string
@@ -173,6 +188,13 @@ func (s Strategy) WithDefault() Strategy {
 // wired, explicitly requesting it must fail clearly, not silently fall back.
 func SemanticUnavailable() error {
 	return invalidRequest("semantic strategy requires embedding configuration")
+}
+
+// EmbeddingsUnavailable returns the request-validation error reported when
+// include_embeddings is requested while no embedding configuration exists.
+// The flag needs a provider; failing clearly beats silently omitting vectors.
+func EmbeddingsUnavailable() error {
+	return invalidRequest("include_embeddings requires embedding configuration")
 }
 
 type TokenEncoding string

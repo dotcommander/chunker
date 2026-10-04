@@ -28,7 +28,8 @@ Content-Type: application/json
   "token_encoding": "string (optional) - Token encoding for token-based chunking and max_tokens",
   "max_tokens": "integer (optional) - Cap tokens per chunk on any strategy (0 = no cap). Chunks that exceed the cap split further: sentence, then word, then hard cut. Measured with token_encoding (default cl100k_base)",
   "separator_profile": "string (optional) - Recursive separator cascade: default_text (default) or cjk_thai (adds CJK/Thai punctuation separators). Only valid with strategy=recursive",
-  "semantic": "object (optional) - Semantic strategy tuning: {break_sensitivity, min_chunk_chars, max_chunk_chars, smoothing_window, coherence_window}. Zero/absent fields use library defaults (1600/200 chars, sensitivity 1.0, windows off). Only valid with strategy=semantic"
+  "semantic": "object (optional) - Semantic strategy tuning: {break_sensitivity, min_chunk_chars, max_chunk_chars, smoothing_window, coherence_window}. Zero/absent fields use library defaults (1600/200 chars, sensitivity 1.0, windows off). Only valid with strategy=semantic",
+  "include_embeddings": "boolean (optional) - Attach an embedding vector to every chunk via the configured embedding provider. Works with any strategy; requires embedding configuration (400 otherwise). Embedder failures fail the request (no fallback — vectors were explicitly requested)"
 }
 ```
 
@@ -364,7 +365,28 @@ Chunks that exceed 500 tokens (cl100k_base) split at sentence boundaries,
 then words, then hard cut. `metadata.max_tokens` echoes the applied ceiling
 and every chunk carries `token_count`.
 
-### 14. Error Cases
+### 14. Embedding Chunks in the Response
+
+`include_embeddings` works with any strategy and returns one vector per chunk
+(also available in the CLI as `-include-embeddings`):
+
+```bash
+curl -X POST http://localhost:8080/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "First topic. Second topic.",
+    "chunk_size": 500,
+    "strategy": "smart_boundary",
+    "include_embeddings": true
+  }'
+```
+
+Each chunk gains `"embedding": [..]`, and `metadata` reports
+`"embedding_model"` and `"embedding_dimensions"`. Requests without an
+embedding provider configured return 400; embedder failures fail the request
+(no silent fallback — vectors were explicitly requested).
+
+### 15. Error Cases
 
 #### Missing required field:
 ```bash

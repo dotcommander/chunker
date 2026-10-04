@@ -87,6 +87,48 @@ func (handlerUniformEmbedder) EmbedBatch(_ context.Context, texts []string) ([][
 	return vectors, nil
 }
 
+func TestChunkHandler_HandleChunk_IncludeEmbeddings(t *testing.T) {
+	t.Parallel()
+
+	handler := NewChunkHandler(service.NewChunkServiceWithEmbedder(handlerUniformEmbedder{}))
+
+	reqBody := `{"text": "First sentence here. Second sentence follows.", "chunk_size": 25, "overlap": 0, "include_embeddings": true}`
+	req := httptest.NewRequest(http.MethodPost, "/chunk", bytes.NewBufferString(reqBody))
+	w := httptest.NewRecorder()
+
+	handler.HandleChunk(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"embedding":[`) {
+		t.Errorf("body = %q, want chunk embedding vectors", body)
+	}
+	if !strings.Contains(body, `"embedding_dimensions":2`) {
+		t.Errorf("body = %q, want embedding_dimensions metadata", body)
+	}
+}
+
+func TestChunkHandler_HandleChunk_IncludeEmbeddingsWithoutProvider(t *testing.T) {
+	t.Parallel()
+
+	handler := NewChunkHandler(service.NewChunkService())
+
+	reqBody := `{"text": "Hello world.", "chunk_size": 100, "include_embeddings": true}`
+	req := httptest.NewRequest(http.MethodPost, "/chunk", bytes.NewBufferString(reqBody))
+	w := httptest.NewRecorder()
+
+	handler.HandleChunk(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %v, want %v", w.Code, http.StatusBadRequest)
+	}
+	if body := w.Body.String(); !strings.Contains(body, "include_embeddings") {
+		t.Errorf("body = %q, want the include_embeddings requirement explained", body)
+	}
+}
+
 func TestChunkHandler_HandleChunk_SemanticWithEmbedder(t *testing.T) {
 	t.Parallel()
 
