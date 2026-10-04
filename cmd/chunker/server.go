@@ -74,6 +74,7 @@ func setupRouter(chunkHandler *handler.ChunkHandler) *chi.Mux {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Post("/chunk", chunkHandler.HandleChunk)
+	r.Post("/chunk/batch", chunkHandler.HandleChunkBatch)
 	r.Get("/health", chunkHandler.HandleHealth)
 
 	return r

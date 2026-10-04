@@ -77,6 +77,47 @@ func (h *ChunkHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, HealthResponse{Status: "ok"}, http.StatusOK)
 }
 
+// HandleChunkBatch chunks many texts under one shared parameter set. The
+// response is always a 200 envelope carrying one result per input text;
+// item-level failures are per-item error objects, not transport errors.
+// Batch-level problems (malformed body, bad shared params) are 400/413 like
+// the single endpoint.
+func (h *ChunkHandler) HandleChunkBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxChunkRequestBytes)
+
+	var req domain.BatchChunkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			sendError(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		sendError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := h.service.ProcessBatchChunkRequest(r.Context(), req)
+	if err != nil {
+		switch {
+		case domain.IsRequestValidationError(err):
+			sendError(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			sendError(w, "Request canceled", http.StatusRequestTimeout)
+		default:
+			log.Printf("ERROR: batch request failed: %v", err)
+			sendError(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	sendJSON(w, resp, http.StatusOK)
+}
+
 func sendJSON(w http.ResponseWriter, data any, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

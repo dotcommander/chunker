@@ -21,6 +21,19 @@ type stubChunkService struct {
 
 var errStub = errors.New("stub failure")
 
+func (s *stubChunkService) ProcessBatchChunkRequest(ctx context.Context, req domain.BatchChunkRequest) (*domain.BatchChunkResponse, error) {
+	results := make([]domain.BatchChunkResult, len(req.Texts))
+	for i, text := range req.Texts {
+		resp, err := s.ProcessChunkRequest(ctx, req.ToChunkRequest(text))
+		if err != nil {
+			results[i] = domain.BatchChunkResult{Index: i, Error: err.Error()}
+			continue
+		}
+		results[i] = domain.BatchChunkResult{Index: i, Response: resp}
+	}
+	return &domain.BatchChunkResponse{Results: results}, nil
+}
+
 func (s *stubChunkService) ProcessChunkRequest(_ context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
 	if s.failOn[req.Text] {
 		return nil, errStub

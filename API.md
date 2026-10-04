@@ -97,6 +97,46 @@ appear together on the same strategy.
 }
 ```
 
+### POST /chunk/batch
+
+Chunks many texts under one shared parameter set in a single request. Every
+field of `POST /chunk` except `text` is shared; `texts` is the array of inputs.
+
+#### Request
+
+```json
+{
+  "texts": ["First document.", "Second document."],
+  "chunk_size": 1000,
+  "strategy": "smart_boundary",
+  "overlap": 200,
+  "max_tokens": 0,
+  "token_encoding": "cl100k_base",
+  "separator_profile": "default_text",
+  "semantic": null,
+  "include_embeddings": false
+}
+```
+
+Only `texts` and `chunk_size` are required; shared params follow the same
+validation as `POST /chunk` and invalid params fail the whole batch (400).
+Per-text validity (for example an empty string) is an item-level result.
+
+#### Response
+
+Always **200 OK** with one result per input text, in order — item failures are
+data in the envelope, not transport errors. Each result carries exactly one
+of `response` (identical to the single-endpoint response) or `error`:
+
+```json
+{
+  "results": [
+    {"index": 0, "response": {"chunks": ["..."], "metadata": {"...": 0}}},
+    {"index": 1, "error": "text is required"}
+  ]
+}
+```
+
 ### GET /health
 
 Health check endpoint.
@@ -386,7 +426,25 @@ Each chunk gains `"embedding": [..]`, and `metadata` reports
 embedding provider configured return 400; embedder failures fail the request
 (no silent fallback — vectors were explicitly requested).
 
-### 15. Error Cases
+### 15. Batch Chunking
+
+Chunk many texts under one shared parameter set; item failures stay in the
+envelope:
+
+```bash
+curl -X POST http://localhost:8080/chunk/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "texts": ["First document.", "", "Third document."],
+    "chunk_size": 500,
+    "strategy": "smart_boundary"
+  }'
+```
+
+Each result carries exactly one of `response` (same shape as `POST /chunk`)
+or `error`, keyed by its `index` in the request.
+
+### 16. Error Cases
 
 #### Missing required field:
 ```bash

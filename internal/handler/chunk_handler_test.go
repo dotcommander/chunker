@@ -18,6 +18,19 @@ type mockChunkService struct {
 	processFunc func(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error)
 }
 
+func (m *mockChunkService) ProcessBatchChunkRequest(ctx context.Context, req domain.BatchChunkRequest) (*domain.BatchChunkResponse, error) {
+	results := make([]domain.BatchChunkResult, len(req.Texts))
+	for i, text := range req.Texts {
+		resp, err := m.ProcessChunkRequest(ctx, req.ToChunkRequest(text))
+		if err != nil {
+			results[i] = domain.BatchChunkResult{Index: i, Error: err.Error()}
+			continue
+		}
+		results[i] = domain.BatchChunkResult{Index: i, Response: resp}
+	}
+	return &domain.BatchChunkResponse{Results: results}, nil
+}
+
 func (m *mockChunkService) ProcessChunkRequest(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
 	if m.processFunc != nil {
 		return m.processFunc(ctx, req)
