@@ -34,6 +34,9 @@ type ChunkRequest struct {
 	// SeparatorProfile selects the recursive strategy's separator cascade:
 	// "default_text" (empty) or "cjk_thai". Only valid with strategy=recursive.
 	SeparatorProfile SeparatorProfile `json:"separator_profile,omitempty"`
+	// Semantic tunes the semantic strategy; zero fields fall back to library
+	// defaults. Only valid with strategy=semantic.
+	Semantic *SemanticOptions `json:"semantic,omitempty"`
 	// MaxTokens caps every chunk's token count (measured with TokenEncoding,
 	// default cl100k_base) after the base strategy runs. 0 disables the cap.
 	// Chunks that exceed it are split further (sentence, then word, then
@@ -81,6 +84,15 @@ func (r ChunkRequest) Validate() error {
 		}
 		if r.Strategy != Recursive {
 			return invalidRequest("separator_profile requires the recursive strategy")
+		}
+	}
+
+	if r.Semantic != nil {
+		if r.Strategy != Semantic {
+			return invalidRequest("semantic options require the semantic strategy")
+		}
+		if err := r.Semantic.validate(); err != nil {
+			return err
 		}
 	}
 
@@ -188,6 +200,34 @@ func (e TokenEncoding) WithDefault() TokenEncoding {
 }
 
 type SeparatorProfile string
+
+// SemanticOptions tunes the semantic strategy. Zero values mean library
+// defaults (see reliquary chunking.SemanticOpts): MaxChunkChars 1600,
+// MinChunkChars 200, BreakSensitivity 1.0; smoothing and coherence windows
+// are disabled by default.
+type SemanticOptions struct {
+	BreakSensitivity float64 `json:"break_sensitivity,omitempty"`
+	MinChunkChars    int     `json:"min_chunk_chars,omitempty"`
+	MaxChunkChars    int     `json:"max_chunk_chars,omitempty"`
+	SmoothingWindow  int     `json:"smoothing_window,omitempty"`
+	CoherenceWindow  int     `json:"coherence_window,omitempty"`
+}
+
+func (o *SemanticOptions) validate() error {
+	if o.BreakSensitivity < 0 {
+		return invalidRequest("semantic.break_sensitivity must be greater than or equal to 0")
+	}
+	if o.MinChunkChars < 0 || o.MaxChunkChars < 0 {
+		return invalidRequest("semantic chunk char bounds must be greater than or equal to 0")
+	}
+	if o.MinChunkChars > 0 && o.MaxChunkChars > 0 && o.MaxChunkChars < o.MinChunkChars {
+		return invalidRequest("semantic.max_chunk_chars must be greater than or equal to semantic.min_chunk_chars")
+	}
+	if o.SmoothingWindow < 0 || o.CoherenceWindow < 0 {
+		return invalidRequest("semantic windows must be greater than or equal to 0")
+	}
+	return nil
+}
 
 const (
 	ProfileDefaultText SeparatorProfile = "default_text"

@@ -30,8 +30,32 @@ func runServerMode(bind, portStr string) {
 	}
 }
 
+// newChunkService builds the chunk service for every entry point (CLI,
+// serve, inspect, files). When an embedding provider is configured, the
+// semantic strategy is backed by it; a broken embedding config logs a
+// warning and degrades to the plain service (semantic then returns a clear
+// validation error) rather than failing the whole binary for an optional
+// feature.
 func newChunkService() *service.ChunkService {
-	return service.NewChunkService()
+	cfg := loadedConfig.Embedding
+	if cfg.Provider == "" {
+		return service.NewChunkService()
+	}
+	embedder, err := service.BuildBatchEmbedder(service.EmbeddingConfig{
+		Provider:   cfg.Provider,
+		BaseURL:    cfg.BaseURL,
+		Model:      cfg.Model,
+		APIKeyEnv:  cfg.APIKeyEnv,
+		Dimensions: cfg.Dimensions,
+		TimeoutMs:  cfg.TimeoutMs,
+		MaxBatch:   cfg.MaxBatch,
+	})
+	if err != nil {
+		log.Printf("WARNING: embedding config invalid; semantic strategy unavailable: %v", err)
+		return service.NewChunkService()
+	}
+	log.Printf("semantic strategy enabled via %s embedding provider", cfg.Provider)
+	return service.NewChunkServiceWithEmbedder(embedder)
 }
 
 func resolvePort(cliPort string) string {

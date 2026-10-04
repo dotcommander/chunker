@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,5 +72,36 @@ func TestChunkHandler_HandleChunk_SemanticWithoutEmbedder(t *testing.T) {
 	}
 	if body := w.Body.String(); !strings.Contains(body, "embedding") {
 		t.Errorf("body = %q, want the embedding requirement explained", body)
+	}
+}
+
+// uniformBatchEmbedder mirrors the service fake; kept local to the handler
+// package so this test wires only public constructors.
+type handlerUniformEmbedder struct{}
+
+func (handlerUniformEmbedder) EmbedBatch(_ context.Context, texts []string) ([][]float32, error) {
+	vectors := make([][]float32, len(texts))
+	for i := range texts {
+		vectors[i] = []float32{1, 1}
+	}
+	return vectors, nil
+}
+
+func TestChunkHandler_HandleChunk_SemanticWithEmbedder(t *testing.T) {
+	t.Parallel()
+
+	handler := NewChunkHandler(service.NewChunkServiceWithEmbedder(handlerUniformEmbedder{}))
+
+	reqBody := `{"text": "One topic sentence. Same topic continues.", "chunk_size": 500, "strategy": "semantic", "semantic": {"break_sensitivity": 1.25}}`
+	req := httptest.NewRequest(http.MethodPost, "/chunk", bytes.NewBufferString(reqBody))
+	w := httptest.NewRecorder()
+
+	handler.HandleChunk(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"strategy_used":"semantic"`) {
+		t.Errorf("body = %q, want strategy_used semantic", body)
 	}
 }

@@ -12,10 +12,23 @@ import (
 // Config holds chunker defaults loaded from ~/.config/chunker/config.yaml.
 // Flags continue to override these values at runtime (flags > config > embedded).
 type Config struct {
-	ChunkSize  int    `yaml:"chunk_size"`
-	Overlap    int    `yaml:"overlap"`
-	ServerBind string `yaml:"server_bind"`
-	ServerPort string `yaml:"server_port"`
+	ChunkSize  int             `yaml:"chunk_size"`
+	Overlap    int             `yaml:"overlap"`
+	ServerBind string          `yaml:"server_bind"`
+	ServerPort string          `yaml:"server_port"`
+	Embedding  EmbeddingConfig `yaml:"embedding"`
+}
+
+// EmbeddingConfig is the yaml shape of the embedding: section. Provider
+// empty (or section absent) disables semantic chunking.
+type EmbeddingConfig struct {
+	Provider   string `yaml:"provider"` // "" | openai | ollama
+	BaseURL    string `yaml:"base_url"`
+	Model      string `yaml:"model"`
+	APIKeyEnv  string `yaml:"api_key_env"`
+	Dimensions int    `yaml:"dimensions"`
+	TimeoutMs  int    `yaml:"timeout_ms"`
+	MaxBatch   int    `yaml:"max_batch"`
 }
 
 //go:embed default_config.yaml
@@ -64,6 +77,10 @@ func LoadConfig() Config {
 	if yaml.Unmarshal(data, &loaded) != nil {
 		return cfg
 	}
+	// Key-presence map: distinguishes "key set to 0/empty" from absent for
+	// keys where zero is a legitimate user choice (overlap, embedding fields).
+	var rawKeys map[string]any
+	_ = yaml.Unmarshal(data, &rawKeys)
 	// Zero values fall back to the embedded default so a partial file
 	// (e.g. only chunk_size set) still gets sensible defaults.
 	if loaded.ChunkSize > 0 {
@@ -71,12 +88,9 @@ func LoadConfig() Config {
 	}
 	if loaded.Overlap >= 0 && data != nil {
 		// Overlap=0 is a legitimate user choice; only override default if the
-		// key was present. Detect by re-parsing into a map.
-		var rawKeys map[string]any
-		if yaml.Unmarshal(data, &rawKeys) == nil {
-			if _, ok := rawKeys["overlap"]; ok {
-				cfg.Overlap = loaded.Overlap
-			}
+		// key was present. Detect with rawKeys above.
+		if _, ok := rawKeys["overlap"]; ok {
+			cfg.Overlap = loaded.Overlap
 		}
 	}
 	if loaded.ServerPort != "" {
@@ -84,6 +98,32 @@ func LoadConfig() Config {
 	}
 	if loaded.ServerBind != "" {
 		cfg.ServerBind = loaded.ServerBind
+	}
+	// Embedding: field-wise override when present so a partial embedding
+	// section keeps the embedded defaults for unset keys. Provider "" in the
+	// user file is meaningful (explicitly disabled) and matches the default.
+	if _, ok := rawKeys["embedding"]; ok {
+		if loaded.Embedding.Provider != "" {
+			cfg.Embedding.Provider = loaded.Embedding.Provider
+		}
+		if loaded.Embedding.BaseURL != "" {
+			cfg.Embedding.BaseURL = loaded.Embedding.BaseURL
+		}
+		if loaded.Embedding.Model != "" {
+			cfg.Embedding.Model = loaded.Embedding.Model
+		}
+		if loaded.Embedding.APIKeyEnv != "" {
+			cfg.Embedding.APIKeyEnv = loaded.Embedding.APIKeyEnv
+		}
+		if loaded.Embedding.Dimensions > 0 {
+			cfg.Embedding.Dimensions = loaded.Embedding.Dimensions
+		}
+		if loaded.Embedding.TimeoutMs > 0 {
+			cfg.Embedding.TimeoutMs = loaded.Embedding.TimeoutMs
+		}
+		if loaded.Embedding.MaxBatch > 0 {
+			cfg.Embedding.MaxBatch = loaded.Embedding.MaxBatch
+		}
 	}
 	return cfg
 }

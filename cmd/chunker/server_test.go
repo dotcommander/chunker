@@ -1,17 +1,66 @@
 package main
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dotcommander/chunker/internal/domain"
 )
 
 // TestStartServer_BindFailure verifies the bind-failure path: when the
 // listener cannot acquire the port, startServer's error channel surfaces
 // the error rather than waitForShutdown swallowing it.
+// The newChunkService tests mutate the package-global loadedConfig; they run
+// sequentially (no t.Parallel) and restore the previous value.
+
+func TestNewChunkService_InvalidEmbeddingConfigDegrades(t *testing.T) {
+	prev := loadedConfig
+	t.Cleanup(func() { loadedConfig = prev })
+	loadedConfig = Config{Embedding: EmbeddingConfig{
+		Provider: "openai", Model: "text-embedding-3-small", Dimensions: 1536,
+		APIKeyEnv: "CHUNKER_TEST_NO_SUCH_KEY",
+	}}
+
+	svc := newChunkService()
+	_, err := svc.ProcessChunkRequest(context.Background(), domain.ChunkRequest{
+		Text: "Some text.", ChunkSize: 100, Strategy: domain.Semantic,
+	})
+	if !domain.IsRequestValidationError(err) {
+		t.Fatalf("semantic error = %v, want validation error (service must degrade, not crash)", err)
+	}
+}
+
+func TestNewChunkService_OllamaConfigEnablesSemantic(t *testing.T) {
+	prev := loadedConfig
+	t.Cleanup(func() { loadedConfig = prev })
+	// Unreachable endpoint (port 1): construction succeeds without network;
+	// at chunk time the embed call fails and the library falls back to
+	// smart-boundary chunks — the same seam `chunker inspect` uses.
+	loadedConfig = Config{Embedding: EmbeddingConfig{
+		Provider: "ollama", BaseURL: "http://127.0.0.1:1", Model: "nomic-embed-text", TimeoutMs: 500,
+	}}
+
+	svc := newChunkService()
+	resp, err := svc.ProcessChunkRequest(context.Background(), domain.ChunkRequest{
+		Text:      "First sentence here. Second sentence follows. A third one as well.",
+		ChunkSize: 30, Strategy: domain.Semantic,
+	})
+	if err != nil {
+		t.Fatalf("semantic via unreachable provider error = %v, want graceful fallback chunks", err)
+	}
+	if len(resp.Chunks) == 0 {
+		t.Fatal("fallback produced no chunks")
+	}
+	if resp.Metadata.StrategyUsed != domain.Semantic {
+		t.Errorf("strategy_used = %q, want semantic", resp.Metadata.StrategyUsed)
+	}
+}
+
 func TestStartServer_BindFailure(t *testing.T) {
 	t.Parallel()
 

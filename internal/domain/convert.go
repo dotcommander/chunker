@@ -27,6 +27,21 @@ func FromLibChunk(c chunking.Chunk) Chunk {
 	}
 }
 
+// SemanticOptsFrom maps wire semantic options to the library type. Zero
+// fields stay zero: the library applies its own defaults for unset values.
+func SemanticOptsFrom(o *SemanticOptions) chunking.SemanticOpts {
+	if o == nil {
+		return chunking.SemanticOpts{}
+	}
+	return chunking.SemanticOpts{
+		BreakSensitivity: o.BreakSensitivity,
+		MinChunkChars:    o.MinChunkChars,
+		MaxChunkChars:    o.MaxChunkChars,
+		SmoothingWindow:  o.SmoothingWindow,
+		CoherenceWindow:  o.CoherenceWindow,
+	}
+}
+
 // FromLibChunks maps a slice of library chunks to wire DTOs.
 func FromLibChunks(in []chunking.Chunk) []Chunk {
 	out := make([]Chunk, len(in))

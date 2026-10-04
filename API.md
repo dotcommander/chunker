@@ -27,7 +27,8 @@ Content-Type: application/json
   "overlap": "integer (optional) - Number of characters/tokens to overlap between chunks",
   "token_encoding": "string (optional) - Token encoding for token-based chunking and max_tokens",
   "max_tokens": "integer (optional) - Cap tokens per chunk on any strategy (0 = no cap). Chunks that exceed the cap split further: sentence, then word, then hard cut. Measured with token_encoding (default cl100k_base)",
-  "separator_profile": "string (optional) - Recursive separator cascade: default_text (default) or cjk_thai (adds CJK/Thai punctuation separators). Only valid with strategy=recursive"
+  "separator_profile": "string (optional) - Recursive separator cascade: default_text (default) or cjk_thai (adds CJK/Thai punctuation separators). Only valid with strategy=recursive",
+  "semantic": "object (optional) - Semantic strategy tuning: {break_sensitivity, min_chunk_chars, max_chunk_chars, smoothing_window, coherence_window}. Zero/absent fields use library defaults (1600/200 chars, sensitivity 1.0, windows off). Only valid with strategy=semantic"
 }
 ```
 
@@ -40,7 +41,7 @@ Content-Type: application/json
 - `markdown_aware` - Preserves markdown structure; code-block chunks carry `metadata` (`language`, `line_count`)
 - `heading_aware` - Splits on markdown headings; each chunk carries a `path` breadcrumb of its heading hierarchy
 - `recursive` - Cascade splitting (paragraph → line → word → hard cut); `separator_profile: cjk_thai` adds ideographic/fullwidth punctuation separators
-- `semantic` - Similarity-based chunking; currently returns 400 (embedding configuration not yet available)
+- `semantic` - Topic-boundary chunking via embedding similarity. Requires an embedding provider in `~/.config/chunker/config.yaml` (`embedding.provider: openai|ollama`); without one, requests return 400. If the embedder fails mid-request, chunking falls back to smart-boundary boundaries.
 - `token_based` - Splits by token count (requires token_encoding)
 
 **Token Encodings** (for token_based strategy):
@@ -319,8 +320,33 @@ curl -X POST http://localhost:8080/chunk \
 The default profile has no CJK separators and would hard-cut mid-sentence;
 `cjk_thai` splits at `。`、`，`、`、` and similar punctuation.
 
-### 12. Token-Capped Smart Boundary
+### 12. Semantic Chunking
 
+Split at embedding-detected topic boundaries (requires an embedding provider in
+the server's config file; falls back to smart-boundary splits if the embedder
+fails mid-request):
+
+```bash
+curl -X POST http://localhost:8080/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Chapter about apples. More apples. | Suddenly, a chapter about zebras. More zebras.",
+    "chunk_size": 2000,
+    "strategy": "semantic",
+    "semantic": {
+      "break_sensitivity": 1.25,
+      "min_chunk_chars": 50,
+      "max_chunk_chars": 1200,
+      "smoothing_window": 3,
+      "coherence_window": 2
+    }
+  }'
+```
+
+All `semantic` fields are optional; zero/absent values use the library
+defaults (max 1600 chars, min 200 chars, sensitivity 1.0, windows off).
+
+### 13. Token-Capped Smart Boundary
 Keep semantic sentence boundaries but guarantee an LLM context limit on any strategy:
 
 ```bash
@@ -338,7 +364,7 @@ Chunks that exceed 500 tokens (cl100k_base) split at sentence boundaries,
 then words, then hard cut. `metadata.max_tokens` echoes the applied ceiling
 and every chunk carries `token_count`.
 
-### 13. Error Cases
+### 14. Error Cases
 
 #### Missing required field:
 ```bash

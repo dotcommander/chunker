@@ -48,6 +48,41 @@ func TestLoadConfig_FirstRunWritesDefault(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_EmbeddingSectionMerge(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "chunker", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Partial embedding section: set keys override, unset keys keep the
+	// embedded defaults (api_key_env, timeout_ms, max_batch).
+	body := []byte("embedding:\n  provider: ollama\n  base_url: http://localhost:11434\n  model: nomic-embed-text\n")
+	if err := os.WriteFile(target, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CHUNKER_CONFIG", target)
+
+	cfg := LoadConfig()
+	if cfg.Embedding.Provider != "ollama" {
+		t.Errorf("Provider = %q, want ollama", cfg.Embedding.Provider)
+	}
+	if cfg.Embedding.BaseURL != "http://localhost:11434" {
+		t.Errorf("BaseURL = %q, want localhost:11434", cfg.Embedding.BaseURL)
+	}
+	if cfg.Embedding.Model != "nomic-embed-text" {
+		t.Errorf("Model = %q, want nomic-embed-text", cfg.Embedding.Model)
+	}
+	if cfg.Embedding.APIKeyEnv != "OPENAI_API_KEY" {
+		t.Errorf("APIKeyEnv = %q, want default OPENAI_API_KEY", cfg.Embedding.APIKeyEnv)
+	}
+	if cfg.Embedding.TimeoutMs != 30000 {
+		t.Errorf("TimeoutMs = %d, want default 30000", cfg.Embedding.TimeoutMs)
+	}
+	if cfg.Embedding.MaxBatch != 64 {
+		t.Errorf("MaxBatch = %d, want default 64", cfg.Embedding.MaxBatch)
+	}
+}
+
 func TestLoadConfig_UserOverridesAreApplied(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "chunker", "config.yaml")

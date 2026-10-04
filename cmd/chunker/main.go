@@ -167,7 +167,9 @@ Usage:
 CLI Options:
   -size       Chunk size in characters or tokens (default: 4000)
   -strategy   Chunking strategy: smart_boundary, word_boundary, sentence_boundary,
-	              hard_cut, paragraph_aware, markdown_aware, token_based (default: smart_boundary)
+              hard_cut, paragraph_aware, markdown_aware, heading_aware,
+              recursive, token_based, semantic (default: smart_boundary)
+              semantic needs an embedding provider in the config file
   -overlap    Overlap between chunks (default: 200)
   -encoding   Token encoding for token_based strategy: cl100k_base, o200k_base,
               p50k_base, r50k_base (default: cl100k_base)

@@ -10,10 +10,20 @@ import (
 	"github.com/dotcommander/chunker/internal/domain"
 )
 
-type ChunkService struct{}
+// ChunkService chunks text. The optional semantic embedder enables the
+// semantic strategy; without it, semantic requests fail validation clearly.
+type ChunkService struct {
+	semantic chunking.BatchEmbedder
+}
 
 func NewChunkService() *ChunkService {
 	return &ChunkService{}
+}
+
+// NewChunkServiceWithEmbedder returns a service whose semantic strategy is
+// backed by the given embedder.
+func NewChunkServiceWithEmbedder(embedder chunking.BatchEmbedder) *ChunkService {
+	return &ChunkService{semantic: embedder}
 }
 
 func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.ChunkRequest) (*domain.ChunkResponse, error) {
@@ -27,28 +37,28 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 
 	strategy := req.Strategy.WithDefault()
 
-	// The semantic strategy needs an embedding provider; until that seam
-	// exists, an explicit request must fail clearly rather than fall back.
+	var libChunks []chunking.Chunk
 	if strategy == domain.Semantic {
-		return nil, domain.SemanticUnavailable()
+		// The semantic strategy needs an embedding provider. Without one, an
+		// explicit request must fail clearly rather than fall back; with one,
+		// embedding failures fall back to smart boundary inside the library.
+		if s.semantic == nil {
+			return nil, domain.SemanticUnavailable()
+		}
+		semanticChunker, err := chunking.NewSemanticChunker(s.semantic, domain.SemanticOptsFrom(req.Semantic))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create semantic chunker: %w", err)
+		}
+		libChunks = semanticChunker.ChunkSemantic(ctx, req.Text, req.ChunkSize, req.Overlap)
+	} else {
+		libChunker, err := s.buildChunker(strategy, req)
+		if err != nil {
+			return nil, err
+		}
+		libChunks = libChunker.Chunk(req.Text, req.ChunkSize, req.Overlap)
 	}
-
-	var libChunker chunking.Chunker
-	var err error
-	switch {
-	case strategy == domain.TokenBased && req.TokenEncoding != "":
-		libChunker, err = chunking.NewTokenChunker(string(req.TokenEncoding.WithDefault()))
-	case strategy == domain.Recursive && req.SeparatorProfile == domain.ProfileCJKThai:
-		libChunker = chunking.NewRecursiveChunker(chunking.CJKThaiSeparatorProfile())
-	default:
-		libChunker, err = chunking.NewChunker(domain.ToLibStrategy(strategy))
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to create chunker: %w", err)
-	}
-
-	libChunks := libChunker.Chunk(req.Text, req.ChunkSize, req.Overlap)
 	effectiveEncoding := req.TokenEncoding
+	var err error
 	if req.MaxTokens > 0 {
 		effectiveEncoding = req.TokenEncoding.WithDefault()
 		libChunks, err = enforceTokenCeiling(libChunks, string(effectiveEncoding), req.MaxTokens)
@@ -79,6 +89,22 @@ func (s *ChunkService) ProcessChunkRequest(ctx context.Context, req domain.Chunk
 		Chunks:   chunks,
 		Metadata: metadata,
 	}, nil
+}
+
+// buildChunker constructs the non-semantic strategy chunker.
+func (s *ChunkService) buildChunker(strategy domain.Strategy, req domain.ChunkRequest) (chunking.Chunker, error) {
+	switch {
+	case strategy == domain.TokenBased && req.TokenEncoding != "":
+		return chunking.NewTokenChunker(string(req.TokenEncoding.WithDefault()))
+	case strategy == domain.Recursive && req.SeparatorProfile == domain.ProfileCJKThai:
+		return chunking.NewRecursiveChunker(chunking.CJKThaiSeparatorProfile()), nil
+	default:
+		libChunker, err := chunking.NewChunker(domain.ToLibStrategy(strategy))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chunker: %w", err)
+		}
+		return libChunker, nil
+	}
 }
 
 // enforceTokenCeiling splits any chunk whose token count exceeds maxTokens

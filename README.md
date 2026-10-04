@@ -16,8 +16,10 @@ A high-performance text chunking service and CLI tool written in Go that intelli
   - `recursive`: Cascade splits — paragraphs, then lines, then words, then
     hard cuts (LangChain-style); `separator_profile: cjk_thai` adds CJK/Thai
     punctuation separators for scripts without whitespace word boundaries
-  - `semantic`: Similarity-based chunking (returns a clear 400 until embedding
-    configuration lands)
+  - `semantic`: Topic-boundary chunking via embedding similarity — needs an
+    embedding provider in the config file (OpenAI or Ollama); falls back to
+    smart_boundary when the embedder fails mid-request, returns a clear 400
+    when no provider is configured
   - `token_based`: Token counting for LLM compatibility
 - **Inspect Mode**: Preview chunking stats and sample chunks without full payload output
 - **Batch Files Mode**: Chunk many files from a glob pattern into an output directory
@@ -117,8 +119,8 @@ chunker files -format jsonl -out-dir chunks "documents/*.txt"
 -strategy   Chunking strategy (default: smart_boundary)
             Options: smart_boundary, word_boundary, sentence_boundary,
                     hard_cut, paragraph_aware, markdown_aware,
-                    heading_aware, recursive, token_based
-                    (semantic: 400 until embedding config lands)
+                    heading_aware, recursive, token_based, semantic
+                    (semantic needs an embedding provider — see below)
 -overlap    Overlap between chunks (default: 200)
 -encoding   Token encoding for token_based strategy (default: cl100k_base)
             Options: cl100k_base, o200k_base, p50k_base, r50k_base
@@ -135,6 +137,20 @@ chunker inspect [-sample 2] [-inspect-format ndjson|human]
 
 Files mode:
 chunker files [-out-dir chunks] "<glob>"
+```
+
+Semantic chunking is enabled via `~/.config/chunker/config.yaml` (see
+[API.md](API.md) for the request-side options and fallback semantics):
+
+```yaml
+embedding:
+  provider: ollama              # or openai; empty disables semantic
+  base_url: http://localhost:11434
+  model: nomic-embed-text
+  # openai example: provider: openai, model: text-embedding-3-small,
+  # dimensions: 1536, api_key_env: OPENAI_API_KEY
+  timeout_ms: 30000
+  max_batch: 64
 ```
 
 ## Task Runner Migration

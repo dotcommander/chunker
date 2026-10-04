@@ -5,3 +5,22 @@ chunk_size: 4000
 overlap: 200
 server_bind: "127.0.0.1"
 server_port: "8080"
+# Semantic chunking needs an embedding provider. Provider empty (default)
+# disables the semantic strategy; it then returns a clear 400 error.
+# Example (OpenAI):
+#   provider: openai
+#   model: text-embedding-3-small
+#   dimensions: 1536
+#   api_key_env: OPENAI_API_KEY
+# Example (Ollama):
+#   provider: ollama
+#   base_url: http://localhost:11434
+#   model: nomic-embed-text
+embedding:
+  provider: ""
+  base_url: ""
+  model: ""
+  api_key_env: "OPENAI_API_KEY"
+  dimensions: 0
+  timeout_ms: 30000
+  max_batch: 64
