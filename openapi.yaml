@@ -1,0 +1,372 @@
+openapi: 3.1.0
+info:
+  title: Chunker API
+  description: |
+    Smart text chunking service. Splits text into chunks using boundary-aware
+    strategies (smart/sentence/word/paragraph/heading/markdown/recursive),
+    token-based sizing with tiktoken encodings, and embedding-detected topic
+    boundaries (semantic, when an embedding provider is configured).
+
+    The default server binds 127.0.0.1:8080; expose it to other hosts only
+    through a reverse proxy that adds authentication and TLS.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Default local server
+paths:
+  /chunk:
+    post:
+      operationId: chunkText
+      summary: Chunk a single text
+      description: |
+        Splits `text` into chunks using the requested strategy. Strategies that
+        need an embedding provider (`semantic`) and the `include_embeddings`
+        flag require embedding configuration on the server; otherwise the
+        request fails with 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChunkRequest'
+            examples:
+              basic:
+                value:
+                  text: Your text here...
+                  chunk_size: 1000
+                  strategy: smart_boundary
+      responses:
+        '200':
+          description: Chunks produced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkResponse'
+        '400':
+          description: >
+            Validation error (missing text, chunk_size <= 0, overlap >=
+            chunk_size, unknown strategy/encoding/profile, semantic or
+            include_embeddings without embedding configuration) or malformed
+            JSON body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: Request canceled or timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds 10 MiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error (details logged server-side)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /chunk/batch:
+    post:
+      operationId: chunkBatch
+      summary: Chunk many texts with shared parameters
+      description: |
+        Chunks every entry of `texts` independently under one shared parameter
+        set. The response is always 200 and carries exactly one result per
+        input, in order; item-level failures (for example an empty string) are
+        per-item `error` objects in the envelope, not transport errors. Invalid
+        shared parameters fail the whole request with 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchChunkRequest'
+            examples:
+              mixed:
+                value:
+                  texts:
+                    - First document.
+                    - ''
+                    - Third document.
+                  chunk_size: 500
+                  strategy: smart_boundary
+      responses:
+        '200':
+          description: >
+            One result per input text; each result carries exactly one of
+            `response` or `error`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchChunkResponse'
+        '400':
+          description: Malformed JSON body, empty `texts`, or invalid shared parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: Request canceled or timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds 10 MiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error (details logged server-side)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  schemas:
+    Strategy:
+      type: string
+      enum:
+        - smart_boundary
+        - word_boundary
+        - sentence_boundary
+        - hard_cut
+        - paragraph_aware
+        - markdown_aware
+        - heading_aware
+        - recursive
+        - token_based
+        - semantic
+      default: smart_boundary
+    TokenEncoding:
+      type: string
+      enum:
+        - cl100k_base
+        - o200k_base
+        - p50k_base
+        - r50k_base
+      default: cl100k_base
+    SeparatorProfile:
+      type: string
+      description: Recursive strategy separator cascade; recursive-only.
+      enum:
+        - default_text
+        - cjk_thai
+      default: default_text
+    SemanticOptions:
+      type: object
+      description: Semantic strategy tuning; zero/absent fields use library defaults.
+      properties:
+        break_sensitivity:
+          type: number
+          format: double
+          minimum: 0
+          default: 1
+        min_chunk_chars:
+          type: integer
+          minimum: 0
+          default: 200
+        max_chunk_chars:
+          type: integer
+          minimum: 0
+          default: 1600
+        smoothing_window:
+          type: integer
+          minimum: 0
+        coherence_window:
+          type: integer
+          minimum: 0
+    ChunkRequest:
+      type: object
+      required: [text, chunk_size]
+      properties:
+        text:
+          type: string
+          minLength: 1
+        chunk_size:
+          type: integer
+          exclusiveMinimum: 0
+          description: Max characters per chunk (tokens for token_based).
+        strategy:
+          $ref: '#/components/schemas/Strategy'
+        overlap:
+          type: integer
+          minimum: 0
+          description: Must be less than chunk_size.
+          default: 0
+        token_encoding:
+          $ref: '#/components/schemas/TokenEncoding'
+        separator_profile:
+          $ref: '#/components/schemas/SeparatorProfile'
+        semantic:
+          $ref: '#/components/schemas/SemanticOptions'
+        max_tokens:
+          type: integer
+          minimum: 0
+          description: >
+            Token ceiling per chunk (token_encoding basis, default
+            cl100k_base) applied after the base strategy; oversized chunks
+            split further. 0 disables.
+        include_embeddings:
+          type: boolean
+          description: >
+            Attach an embedding vector to every chunk via the configured
+            embedding provider. Any strategy; requires embedding
+            configuration; failures fail the request (no fallback).
+          default: false
+    Chunk:
+      type: object
+      required: [id, start_char, end_char, text, char_count, word_count, content_hash]
+      properties:
+        id:
+          type: integer
+        start_char:
+          type: integer
+          description: Character (rune) offset of the chunk in the source text.
+        end_char:
+          type: integer
+        text:
+          type: string
+        char_count:
+          type: integer
+        word_count:
+          type: integer
+        token_count:
+          type: integer
+          description: Present for token_based or when max_tokens is set.
+        path:
+          type: array
+          items:
+            type: string
+          description: Heading breadcrumb; heading/markdown-aware strategies.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Strategy annotations (heading_level, language, ...).
+        content_hash:
+          type: string
+          description: First 16 hex characters of SHA-256(text).
+        embedding:
+          type: array
+          items:
+            type: number
+            format: float
+          description: Chunk text embedding; include_embeddings only.
+    Metadata:
+      type: object
+      required: [total_chunks, total_chars, strategy_used]
+      properties:
+        total_chunks:
+          type: integer
+        total_chars:
+          type: integer
+        total_tokens:
+          type: integer
+          description: Present for token_based.
+        strategy_used:
+          $ref: '#/components/schemas/Strategy'
+        token_encoding:
+          allOf:
+            - $ref: '#/components/schemas/TokenEncoding'
+          description: Present when an encoding applied (token_based, max_tokens).
+        max_tokens:
+          type: integer
+          description: Present when a token ceiling was requested.
+        separator_profile:
+          $ref: '#/components/schemas/SeparatorProfile'
+        embedding_model:
+          type: string
+          description: Provider model; include_embeddings only.
+        embedding_dimensions:
+          type: integer
+          description: Vector length; include_embeddings only.
+    ChunkResponse:
+      type: object
+      required: [chunks, metadata]
+      properties:
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Chunk'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+    BatchChunkRequest:
+      type: object
+      required: [texts, chunk_size]
+      properties:
+        texts:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        chunk_size:
+          type: integer
+          exclusiveMinimum: 0
+        strategy:
+          $ref: '#/components/schemas/Strategy'
+        overlap:
+          type: integer
+          minimum: 0
+        token_encoding:
+          $ref: '#/components/schemas/TokenEncoding'
+        separator_profile:
+          $ref: '#/components/schemas/SeparatorProfile'
+        semantic:
+          $ref: '#/components/schemas/SemanticOptions'
+        max_tokens:
+          type: integer
+          minimum: 0
+        include_embeddings:
+          type: boolean
+          default: false
+    BatchChunkResult:
+      type: object
+      required: [index]
+      properties:
+        index:
+          type: integer
+          description: Position of this item's text in the request.
+        response:
+          $ref: '#/components/schemas/ChunkResponse'
+        error:
+          type: string
+          description: Present exactly when response is absent.
+    BatchChunkResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchChunkResult'
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]

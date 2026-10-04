@@ -177,7 +177,8 @@ just server
 
 See [API.md](API.md) for complete HTTP API documentation — `POST /chunk`,
 `POST /chunk/batch` (many texts, one shared parameter set, per-item results),
-and `GET /health`.
+and `GET /health`. A machine-readable contract lives in
+[openapi.yaml](openapi.yaml).
 
 ### Quick Example
 
