@@ -52,7 +52,8 @@ func TestChunkService_Recursive_CJKThaiProfile(t *testing.T) {
 		t.Errorf("metadata.separator_profile = %q, want cjk_thai", resp.Metadata.SeparatorProfile)
 	}
 	got := chunkTexts(resp.Chunks)
-	want := []string{"第一句", "。第二句", "。第三句"}
+	// Reliquary v0.14.0 restarts after the separator without leaking it.
+	want := []string{"第一句", "第二句", "第三句"}
 	if len(got) != len(want) {
 		t.Fatalf("chunks = %v, want %v", got, want)
 	}

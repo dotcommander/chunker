@@ -1,5 +1,15 @@
 # Chunker
 
+> **RETIRED — superseded by [`distill`](../distill) (v0.12.0+).** The chunker
+> service, CLI, inspection modes, and metadata are consolidated into distill,
+> powered by reliquary. `chunker serve` → `distill serve`; `chunker inspect`
+> → `distill chunk --inspect`; `chunker -format jsonl` →
+> `distill chunk --format jsonl`; `chunker files "docs/*.md" -out-dir out` →
+> `distill chunk --glob "docs/*.md" --out-dir out` (per-file generation
+> directories with manifests); `-strategy X` → `--mode X`. See
+> `../distill/docs/api/API.md` for the migration map. This module is frozen;
+> new chunking work lands in reliquary and new front-ends in distill.
+
 A high-performance text chunking service and CLI tool written in Go that intelligently splits text into manageable chunks using boundary-aware sentence detection and token counting.
 
 ## Features

@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [v1.3.0] - 2026-10-12
+
+Final release — retired. Superseded by [`distill`](../distill); chunking
+logic lives in [`reliquary`](https://github.com/dotcommander/reliquary)
+(`chunkservice` as of v0.16.0).
+
+### Retired
+
+- The chunker surface moved to [`distill`](../distill) (v0.12.0+):
+  the HTTP API became `distill serve` (same paths and payload shapes), the
+  strategy CLI became `distill chunk --mode <strategy>`, `inspect` became
+  `distill chunk --inspect`, JSONL streaming became `--format jsonl`, and
+  `files` batches became `--glob`. Chunk metadata (`content_hash`, rune
+  spans, heading paths, strategy metadata) now ships in distill manifests.
+  One intentional behavior change: a mid-run semantic embedding failure now
+  fails the request/run instead of silently emitting fallback chunks.
+  This module is frozen; chunking algorithms live in
+  [`reliquary`](https://github.com/dotcommander/reliquary).
+
+### Changed
+
+- Dependency bump: `github.com/dotcommander/reliquary` v0.13.0 → v0.14.0
+  (recursive CJK/Thai profile restarts chunks after the separator without
+  leaking it; suite expectations updated accordingly).
+
 ## [v1.2.0] - 2026-07-18
 
 First public release under `github.com/dotcommander/chunker`. Chunking is

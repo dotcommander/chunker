@@ -5,8 +5,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dlclark/regexp2 v1.12.0 h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
 github.com/dlclark/regexp2 v1.12.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
-github.com/dotcommander/reliquary v0.13.0 h1:xnb04w/Td4PMNbGwSWnzC9mSZO3umWbLNWZyOCIBDsw=
-github.com/dotcommander/reliquary v0.13.0/go.mod h1:7pHlvoaFyuZ/1ztdU/og6sK0YEis4TLH3YFqJob3Hp4=
+github.com/dotcommander/reliquary v0.14.0 h1:+3PdacdTyxfX8Mop8LlkhNX0gsT6UUpBROyqpvIWgNY=
+github.com/dotcommander/reliquary v0.14.0/go.mod h1:7pHlvoaFyuZ/1ztdU/og6sK0YEis4TLH3YFqJob3Hp4=
 github.com/go-chi/chi/v5 v5.3.1 h1:3j4HZLGZQ3JpMCrPJF/Jl3mYJfWLKBfNJ6quurUGCf8=
 github.com/go-chi/chi/v5 v5.3.1/go.mod h1:R+tYY2hNuVUUjxoPtqUdgBqevM9s9njzkTLutVsOCto=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

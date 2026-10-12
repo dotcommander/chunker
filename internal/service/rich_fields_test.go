@@ -13,9 +13,11 @@ import (
 // for fixed inputs; regenerating them requires reviewing the response-schema
 // change (API.md documents the same shape).
 
-const goldenMarkdownAware = `{"chunks":[{"id":0,"start_char":0,"end_char":30,"text":"# Title\n\nIntro paragraph here.","char_count":30,"word_count":5,"content_hash":"347034ca44811c26"},` +
-	`{"id":1,"start_char":0,"end_char":0,"text":"` + "```go" + `\nfmt.Println(\"hi\")\n` + "```" + `","char_count":27,"word_count":3,"metadata":{"language":"go","line_count":"1"},"content_hash":"295cf8e363aeb2b5"}],` +
-	`"metadata":{"total_chunks":2,"total_chars":60,"strategy_used":"markdown_aware"}}`
+// Reliquary v0.14.0 keeps unlike blocks separate and preserves source spans.
+const goldenMarkdownAware = `{"chunks":[{"id":0,"start_char":0,"end_char":7,"text":"# Title","char_count":7,"word_count":2,"metadata":{"heading_level":"1","type":"heading","word_count":"1"},"content_hash":"79aeaf7ba450cdab"},` +
+	`{"id":1,"start_char":9,"end_char":30,"text":"Intro paragraph here.","char_count":21,"word_count":3,"metadata":{"type":"paragraph","word_count":"3"},"content_hash":"de57248f8b6ff540"},` +
+	`{"id":2,"start_char":32,"end_char":59,"text":"` + "```go" + `\nfmt.Println(\"hi\")\n` + "```" + `","char_count":27,"word_count":3,"metadata":{"language":"go","line_count":"1","type":"code","word_count":"3"},"content_hash":"295cf8e363aeb2b5"}],` +
+	`"metadata":{"total_chunks":3,"total_chars":60,"strategy_used":"markdown_aware"}}`
 
 const goldenHeadingAware = `{"chunks":[{"id":0,"start_char":0,"end_char":18,"text":"# Alpha Alpha body","char_count":18,"word_count":4,"path":["Alpha"],"content_hash":"a30b657c56e25e0e"},` +
 	`{"id":1,"start_char":19,"end_char":24,"text":"text.","char_count":5,"word_count":1,"path":["Alpha"],"content_hash":"3d7de60a233c1b63"},` +
